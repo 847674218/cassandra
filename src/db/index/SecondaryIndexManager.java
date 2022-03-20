@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.thrift.IndexClause;
 import org.apache.cassandra.thrift.IndexExpression;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,8 +98,11 @@ public class SecondaryIndexManager
     
     
     /**
-     * Does a full rebuild of the indexes specified by columns from the sstables.
+     * Does a full, blocking rebuild of the indexes specified by columns from the sstables.
      * Does nothing if columns is empty.
+     *
+     * Caller must acquire and release references to the sstables used here.
+     *
      * @param sstables the data to build from
      * @param columns the list of columns to index
      * @throws IOException 
@@ -116,7 +120,7 @@ public class SecondaryIndexManager
         try
         {
             future.get();
-            flushIndexes();
+            flushIndexesBlocking();
         }
         catch (InterruptedException e)
         {
@@ -150,20 +154,18 @@ public class SecondaryIndexManager
         if (index == null)
             return;
         
-        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
-        
-        index.removeIndex(column);
-        
         // Remove this column from from row level index map
         if (index instanceof PerRowSecondaryIndex)
         {
             index.removeColumnDef(column);
-            
+
             //If now columns left on this CF remove from row level lookup
             if (index.getColumnDefs().isEmpty())
                 rowLevelIndexMap.remove(index.getClass());
         }
-        
+
+        index.removeIndex(column);
+        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
     }
 
     /**
@@ -270,7 +272,7 @@ public class SecondaryIndexManager
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public void flushIndexes() throws IOException
+    public void flushIndexesBlocking() throws IOException
     {
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
             entry.getValue().forceBlockingFlush();
@@ -366,9 +368,13 @@ public class SecondaryIndexManager
                     continue;              
                 
                 SecondaryIndex index = getIndexForColumn(columnName);
-                assert index != null;               
-
-                //Update entire row if we encounter a row level index
+                if (index == null)
+                {
+                    logger.debug("Looks like index got dropped mid-update.  Skipping");
+                    continue;
+                }
+                
+                // Update entire row if we encounter a row level index
                 if (index instanceof PerRowSecondaryIndex)
                 {
                     if (appliedRowLevelIndexes == null)
@@ -394,9 +400,13 @@ public class SecondaryIndexManager
                 continue; // null column == row deletion
 
             SecondaryIndex index = getIndexForColumn(columnName);
-            assert index != null;
+            if (index == null)
+            {
+                logger.debug("index on {} removed; skipping remove-old for {}", columnName, ByteBufferUtil.bytesToHex(rowKey));
+                continue;
+            }
 
-            //Update entire row if we encounter a row level index
+            // Update entire row if we encounter a row level index
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (appliedRowLevelIndexes == null)
@@ -445,8 +455,7 @@ public class SecondaryIndexManager
             else
             {
                 DecoratedKey<LocalToken> valueKey = getIndexKeyFor(column.name(), column.value());
-
-                ((PerColumnSecondaryIndex)index).deleteColumn(valueKey, key.key, column);
+                ((PerColumnSecondaryIndex) index).deleteColumn(valueKey, key.key, column);
             }
         }       
     }

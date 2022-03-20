@@ -2,7 +2,7 @@
   {
     "requirementDescription": "F47",
     "type": "CLASS",
-    "fullyQualifiedName": "TCustomSocket.java",
+    "fullyQualifiedName": "IMergeIterator.java",
     "isNewTraceLink": true,
     "isDeleted": false
   },
@@ -215,13 +215,6 @@
     "fullyQualifiedName": "CliUtils.java",
     "isNewTraceLink": false,
     "isDeleted": false
-  },
-  {
-    "requirementDescription": "F6",
-    "type": "CLASS",
-    "fullyQualifiedName": "AIOExecutorService.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
   },
   {
     "requirementDescription": "F6",

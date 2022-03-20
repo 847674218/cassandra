@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.ICompactSerializer2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,10 +27,9 @@ import org.apache.cassandra.utils.obs.OpenBitSet;
 
 public class BloomFilter extends Filter
 {
-
     private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
     private static final int EXCESS = 20;
-    static ICompactSerializer2<BloomFilter> serializer_ = new BloomFilterSerializer();
+    static BloomFilterSerializer serializer_ = new BloomFilterSerializer();
 
     public OpenBitSet bitset;
 
@@ -46,7 +44,7 @@ public class BloomFilter extends Filter
         return new BloomFilter(0, bucketsFor(0, 0));
     }
 
-    public static ICompactSerializer2<BloomFilter> serializer()
+    public static BloomFilterSerializer serializer()
     {
         return serializer_;
     }
@@ -89,14 +87,9 @@ public class BloomFilter extends Filter
         return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
     }
 
-    private long buckets()
-    {
-      return bitset.size();
-    }
-
     private long[] getHashBuckets(ByteBuffer key)
     {
-        return BloomFilter.getHashBuckets(key, hashCount, buckets());
+        return BloomFilter.getHashBuckets(key, hashCount, bitset.size());
     }
 
     // Murmur is faster than an SHA-based approach and provides as-good collision
@@ -120,7 +113,7 @@ public class BloomFilter extends Filter
     {
         for (long bucketIndex : getHashBuckets(key))
         {
-            bitset.set(bucketIndex);
+            bitset.fastSet(bucketIndex);
         }
     }
 
@@ -128,7 +121,7 @@ public class BloomFilter extends Filter
     {
       for (long bucketIndex : getHashBuckets(key))
       {
-          if (!bitset.get(bucketIndex))
+          if (!bitset.fastGet(bucketIndex))
           {
               return false;
           }
@@ -141,8 +134,8 @@ public class BloomFilter extends Filter
         bitset.clear(0, bitset.size());
     }
 
-    public int serializedSize()
+    public long serializedSize()
     {
-        return BloomFilterSerializer.serializedSize(this);
+        return serializer_.serializedSize(this);
     }
 }

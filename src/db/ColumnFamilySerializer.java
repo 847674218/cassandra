@@ -32,10 +32,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.io.ICompactSerializer3;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 
-public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
+public class ColumnFamilySerializer implements ISerializer<ColumnFamily>
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilySerializer.class);
 
@@ -85,10 +85,13 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             int count = columns.size();
             dos.writeInt(count);
+            int i = 0;
             for (IColumn column : columns)
             {
                 columnFamily.getColumnSerializer().serialize(column, dos);
+                i++;
             }
+            assert count == i: "CF size changed during serialization: was " + count + " initially but " + i + " written";
             return count;
         }
         catch (IOException e)
@@ -153,7 +156,7 @@ public class ColumnFamilySerializer implements ICompactSerializer3<ColumnFamily>
 
     public long serializedSize(ColumnFamily cf)
     {
-        return cf.serializedSize();
+        return cf == null ? DBConstants.boolSize : cf.serializedSize();
     }
 
     /**

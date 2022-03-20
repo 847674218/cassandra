@@ -292,7 +292,7 @@ public class SSTableReader extends SSTable
             stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
             if (descriptor.usesOldBloomFilter)
             {
-                bf = LegacyBloomFilter.serializer().deserialize(stream, 0); // version means nothing.
+                bf = LegacyBloomFilter.serializer().deserialize(stream);
             }
             else
             {
@@ -477,8 +477,10 @@ public class SSTableReader extends SSTable
                 // range are end inclusive so we use the previous index from what binarySearch give us
                 // since that will be the last index we will return
                 right = (right + 1) * -1;
-                if (right > 0)
-                    right--;
+                if (right == 0)
+                    // Means the first key is already stricly greater that the right bound
+                    continue;
+                right--;
             }
 
             if (left > right)

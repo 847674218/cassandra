@@ -32,6 +32,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -177,13 +178,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!rowCacheKeysToSave.isModified())
             rowCacheKeysToSave = new DefaultInteger(metadata.getRowCacheKeysToSave());
 
-        compactionStrategy.shutdown();
-        compactionStrategy = metadata.createCompactionStrategyInstance(this);
+        maybeReloadCompactionStrategy();
 
         updateCacheSizes();
         scheduleCacheSaving(rowCacheSaveInSeconds.value(), keyCacheSaveInSeconds.value(), rowCacheKeysToSave.value());
 
         indexManager.reload();
+    }
+
+    private void maybeReloadCompactionStrategy()
+    {
+        // Check if there is a need for reloading
+        if (metadata.compactionStrategyClass.equals(compactionStrategy.getClass()) && metadata.compactionStrategyOptions.equals(compactionStrategy.getOptions()))
+            return;
+
+        CompactionManager.instance.getCompactionLock().lock();
+        try
+        {
+            compactionStrategy.shutdown();
+            compactionStrategy = metadata.createCompactionStrategyInstance(this);
+        }
+        finally
+        {
+            CompactionManager.instance.getCompactionLock().unlock();
+        }
     }
 
     private ColumnFamilyStore(Table table, String columnFamilyName, IPartitioner partitioner, int generation, CFMetaData metadata)
@@ -256,7 +274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (Exception e)
         {
             // this shouldn't block anything.
-            logger.warn(e.getMessage(), e);
+            logger.warn("Failed unregistering mbean: " + mbeanName, e);
         }
     }
 
@@ -561,8 +579,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         logger.info("Loading new SSTable Set for " + table.name + "/" + columnFamily + ": " + sstables);
+        SSTableReader.acquireReferences(sstables);
         data.addSSTables(sstables); // this will call updateCacheSizes() for us
-
         logger.info("Requesting a full secondary index re-build for " + table.name + "/" + columnFamily);
         try
         {
@@ -571,6 +589,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (IOException e)
         {
            throw new IOError(e);
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
         }
 
         logger.info("Setting up new generation: " + generation);
@@ -885,11 +907,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return false;
     }
 
-    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
-    {
-        return compactionStrategy.isKeyExistenceExpensive(sstablesToIgnore);
-    }
-
     /*
      * Called after a BinaryMemtable flushes its in-memory data, or we add a file
      * via bootstrap. This information is cached in the ColumnFamilyStore.
@@ -1173,44 +1190,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter, int gcBefore)
     {
-        // special case slicing the entire row:
-        // we can skip the filter step entirely, and we can help out removeDeleted by re-caching the result
-        // if any tombstones have aged out since last time.  (This means that the row cache will treat gcBefore as
-        // max(gcBefore, all previous gcBefore), which is fine for correctness.)
-        //
-        // But, if the filter is asking for less columns than we have cached, we fall back to the slow path
-        // since we have to copy out a subset.
-        if (filter.filter instanceof SliceQueryFilter)
-        {
-            SliceQueryFilter sliceFilter = (SliceQueryFilter) filter.filter;
-            if (sliceFilter.start.remaining() == 0 && sliceFilter.finish.remaining() == 0)
-            {
-                if (cached.isSuper() && filter.path.superColumnName != null)
-                {
-                    // subcolumns from named supercolumn
-                    IColumn sc = cached.getColumn(filter.path.superColumnName);
-                    if (sc == null || sliceFilter.count >= sc.getSubColumns().size())
-                    {
-                        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
-                        if (sc != null)
-                            cf.addColumn(sc, HeapAllocator.instance);
-                        return removeDeleted(cf, gcBefore);
-                    }
-                }
-                else
-                {
-                    // top-level columns
-                    if (sliceFilter.count >= cached.getColumnCount())
-                    {
-                        removeDeletedColumnsOnly(cached, gcBefore);
-                        return removeDeletedCF(cached, gcBefore);
-                    }
-                }
-            }
-        }
-
+        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
         IColumnIterator ci = filter.getMemtableColumnIterator(cached, null, getComparator());
-        ColumnFamily cf = ci.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory(), filter.filter.isReversed());
         filter.collateColumns(cf, Collections.singletonList(ci), getComparator(), gcBefore);
         // TODO this is necessary because when we collate supercolumns together, we don't check
         // their subcolumns for relevance, so we need to do a second prune post facto here.
@@ -1394,28 +1375,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             DataTracker.View currentView = cfs.markCurrentViewReferenced();
+
             try
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    try
-                    {
-                        // mkdir
-                        File dataDirectory = ssTable.descriptor.directory.getParentFile();
-                        String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
-                        FileUtils.createDirectory(snapshotDirectoryPath);
+                    // mkdir
+                    File dataDirectory = ssTable.descriptor.directory.getParentFile();
+                    String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table.name, snapshotName);
+                    FileUtils.createDirectory(snapshotDirectoryPath);
 
-                        // hard links
-                        ssTable.createLinks(snapshotDirectoryPath);
-                        if (logger.isDebugEnabled())
-                            logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
-                                    " created in " + snapshotDirectoryPath);
-                    }
-                    catch (IOException e)
+                    // hard links
+                    ssTable.createLinks(snapshotDirectoryPath);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                                     " created in " + snapshotDirectoryPath);
+                }
+
+                if (compactionStrategy instanceof LeveledCompactionStrategy)
+                {
+                    File manifest = LeveledManifest.tryGetManifest(cfs);
+
+                    if (manifest != null)
                     {
-                        throw new IOError(e);
+                        File snapshotDirectory = new File(Table.getSnapshotPath(manifest.getParent(), snapshotName));
+                        FileUtils.createDirectory(snapshotDirectory);
+
+                        CLibrary.createHardLink(manifest, new File(snapshotDirectory, manifest.getName()));
                     }
                 }
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
             }
             finally
             {
@@ -1637,7 +1629,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new AssertionError(e);
         }
         long truncatedAt = System.currentTimeMillis();
-        snapshot(Table.getTimestampedSnapshotName("before-truncate"));
+        snapshot(Table.getTimestampedSnapshotName(columnFamily));
 
         return CompactionManager.instance.submitTruncate(this, truncatedAt);
     }

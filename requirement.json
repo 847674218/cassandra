@@ -374,5 +374,237 @@
     {
         "name": "94",
         "normalProcess": "Make sure repair only stream needed sstables. Repair still streams unnecessary sstables. unfortunately got committed with the use of the wrong streaming method, the one that stream all the sstables of the keyspace."
+    },
+    {
+        "name": "F95",
+        "normalProcess": "Acquire references during index build to prevent delete problems on Windows. Fail to delete -Index files if index is currently building. If there is index building in progress, following errors are thrown if cassandra is trying to delete *-Index.db files."
+    },
+    {
+        "name": "F96",
+        "normalProcess": "Describe_ring should include datacenter/topology information. describe_ring should include datacenter/topology information. describe_ring is great for getting a list of nodes in the cluster, but it doesn't provide any information about the network topology which prevents it's use in a multi-dc setup. It would be nice if we added another list to the TokenRange object containing the DC information."
+    },
+    {
+        "name": "F97",
+        "normalProcess": "Thrift sockets are not properly buffered. Thrift sockets are not buffered properly. adds back BufferedInputStream and BufferedOutputStream to TSocket in new TCustomSocket class."
+    },
+    {
+        "name": "F98",
+        "normalProcess": "performance improvement for bytebufferutil compare function. Performance issue in ByteBufferUtil. Profiling 1.0 we can see ByteBufferUtil.compareUnsigned is slow. We can avoid the problem when the ByteBuffer has a backing array."
+    },
+    {
+        "name": "F99",
+        "normalProcess": "Add system.versions ColumnFamily. Expose server, api versions to CQL. Need to expose the CQL api version; might as well include the server version while we're at it."
+    },
+    {
+        "name": "F100",
+        "normalProcess": "Reduce network copies. remove more copies from read/write network path. RowMutation.serializedBuffer and ReadVerbHandler both do an extra copy of the serialized data. We can avoid this be pre-computing the serialized size and allocating an appropriate buffer. ReadResponseSerializer doesn't compute serialized size correctly."
+    },
+    {
+        "name": "F101",
+        "normalProcess": "limit nodetool to 32MB of heap. java heap limit for nodetool."
+    },
+    {
+        "name": "F102",
+        "normalProcess": "(CQL) update parser to accept timestamp instead of date. Update CQL type names to match expected (SQL) behavor."
+    },
+    {
+        "name": "F103",
+        "normalProcess": "Fix CLI `show schema` to include compression_options. show schema' in cli does not show compression_options. using the cassandra-cli command line tool, I realized that a 'show schema' does not print out the compression_options I specified when creating them."
+    },
+    {
+        "name": "F104",
+        "normalProcess": "Snapshot to include manifest under LeveledCompactionStrategy. snapshot should include manifest under leveledcompaction."
+    },
+    {
+        "name": "F105",
+        "normalProcess": "(CQL) SELECT query should allow CF name to be qualified by keyspace. CQL queries should alow talbe names to be qualified by keyspace."
+    },
+    {
+        "name": "F106",
+        "normalProcess": "(CQL) Fix internal application error specifying 'using consistency ...' in lower case. CQL: Internal application error specifying 'using consistency ...' in lower case; must be upper case."
+    },
+    {
+        "name": "F107",
+        "normalProcess": "Fix Deflate compression when compression actually makes the data bigger. Deflate Compression corrupts SSTables. it seems that the Deflate Compressor corrupts the SSTables. 3 out of 3 Installations were corrupt. Snappy works fine."
+    },
+    {
+        "name": "F108",
+        "normalProcess": "Optimize UUIDGen to avoid lock contention on InetAddress.getLocalHost. unnecessary locking in hint path due to InetAddress.getLocalhost()."
+    },
+    {
+        "name": "F109",
+        "normalProcess": "Tolerate index being dropped mid-mutation. dropping index causes some inflight mutations to fail. dropping index causes some inflight mutations to fail. hector on client side didnt throw any exception. Cancelling index build throws assert error."
+    },
+    {
+        "name": "F110",
+        "normalProcess": "CompactionManager is now responsible for checking for new candidates post-task execution, enabling more consistent leveled compaction. CFM.toAvro() incorrectly serialises key_validation_class defn. "
+    },
+    {
+        "name": "F111",
+        "normalProcess": "Cache HSHA threads. Make HSHA cached threads. JDK's newCachedTP does the following."
+    },
+    {
+        "name": "F112",
+        "normalProcess": "Use CF/KS names as snapshot prefix for drop + truncate operations. Enhance human-readability of snapshot names created by drop column family."
+    },
+    {
+        "name": "F113",
+        "normalProcess": "Break bloom filters up to avoid heap fragmentation. bloom filters should avoid huge array allocations to avoid fragmentation concerns.The fact that bloom filters are backed by single large arrays of longs is expected to interact badly with promotion of objects into old gen with CMS, due to fragmentation concerns."
+    },
+    {
+        "name": "F114",
+        "normalProcess": "Fix cassandra hanging on jsvc stop. stop Cassandra result in hang."
+    },
+    {
+        "name": "F115",
+        "normalProcess": "Avoid leveled compaction getting blocked on errors. LeveledCompactionTask is too fragile and can block compactions. If any error happens during a LeveledCompactionTask, it will just block every compaction."
+    },
+    {
+        "name": "F116",
+        "normalProcess": "Make reloading the compaction strategy safe. CFS reloading of the compaction strategy is done for every metadata update and is not thread safe. The reloading of the compaction strategy done during CFS.reload is not thread safe. In particular, this is a problem for leveled compactions."
+    },
+    {
+        "name": "F117",
+        "normalProcess": "Ignore 0.8 hints even if compaction begins before we try to purge them. NPE in hinted handoff."
+    },
+    {
+        "name": "F118",
+        "normalProcess": "Remove procrun (bin daemon) from Cassandra source tree and artifacts. Apache Daemon missing from the binary tarball."
+    },
+    {
+        "name": "F119",
+        "normalProcess": "Make cassandra compile under JDK7. Currently system won't compile under JDK 7 because of errors in CQL JDBC component."
+    },
+    {
+        "name": "F120",
+        "normalProcess": "Remove dependency of clientutil.jar to FBUtilities. clientutil depends on FBUtilities. clientutils' (indirect )dependency on FBUtilities (needed for tests) would result in huge numbers of classes being pulled in transitively.The attached patch moves the bytesToHex and hexToBytes methods into a new class (o.a.c.utils.Hex), which has no external dependencies."
+    },
+    {
+        "name": "F121",
+        "normalProcess": "Avoid truncation errors by using long math on long values. use long math, if you want long results. Code calculates long values, using integer intermediate input, which can cause truncation errors, safer just to use long input."
+    },
+    {
+        "name": "F122",
+        "normalProcess": "Avoid clock drift on some Windows machine. Avoid clock drift on some Windows machines. Performing Thread.sleep() with non-rounded values increases the frequency of interrupts on Windows machines; this can cause performance problems, and on some machines even clock drift problems for the duration of the sleep."
+    },
+    {
+        "name": "F123",
+        "normalProcess": "Display cache provider in cli 'describe keyspace' command. it would be nice if describe keyspace in cli shows Cache Provider. Describe keyspace in the cli doesn't show the cache provider it would be nice to show it to verify the settings."
+    },
+    {
+        "name": "F124",
+        "normalProcess": "Fix incomplete topology information in describe_ring. describe_ring topology information is wrong/incomplete.  topology information was added to describe_ring, however it asks the gossiper for the DC information, and the gossiper can only have this with a gossip-enabled snitch, which currently means the Ec2Snitch. Instead, it should be asking the snitch for the DC for each endpoint."
+    },
+    {
+        "name": "F125",
+        "normalProcess": "Expire dead gossip states based on time. Expire dead gossip states based on time. Currently dead states are held until aVeryLongTime,3 days. The problem is that if a node reboots within this period, it begins a new 3 days and will repopulate the ring with the dead state."
+    },
+    {
+        "name": "F126",
+        "normalProcess": "Improve CompactionTask extensibility. CompactionTask is still fairly coupled to SizeTieredCompaction, including some ugly casting."
+    },
+    {
+        "name": "F127",
+        "normalProcess": "Allow one leveled compaction task to kick off another. Allow one leveled compaction task to kick off another. Leveled compaction wants to prevent multiple tasks from running at once, but this check also defeats the kick off another compaction if there is more work to do code in CompactionTask. So currently LCS relies completely on the every-five-minutes compaction check, which is not enough to keep up with heavy insert load."
+    },
+    {
+        "name": "F128",
+        "normalProcess": "Allow encryption only between datacenters. Enable encryption for data across the DC only. Make DC level Encryption option. 1) Modify EncryptionOptions to add inter_dc option. 2) Modify OutboundTCPConnection.connect() to check if it is in the same DC and if the encryption option is enabled."
+    },
+    {
+        "name": "F129",
+        "normalProcess": "Fix truncate allowing data to be replayed post-restart. truncate can still result in data being replayed after a restart."
+    },
+    {
+        "name": "F130",
+        "normalProcess": "Make iwriter final in IndexWriter to avoid NPE. NPE when writing SSTable generated via repair. A NPE is generated during repair when closing an sstable generated via SSTable build. It doesn't happen always. The node had been scrubbed and compacted before calling repair."
+    },
+    {
+        "name": "F131",
+        "normalProcess": "(CQL) update grammar to require key clause in DELETE statement. NPE on malformed CQL."
+    },
+    {
+        "name": "F132",
+        "normalProcess": "(CQL) allow numeric keyspace names in USE statement. Can't USE numeric keyspace names in CQL. Cassandra allows keyspace names to start with a digit or an underscore (see o.a.c.db.migration.Migration.isLegalName), but CQL's USE statement only accepts a CQL identifier, which must start with a letter. So there's no way to use a keyspace named 142 or_hi_in CQL."
+    },
+    {
+        "name": "F133",
+        "normalProcess": "(Hadoop) skip empty rows when slicing the entire row. Skip rows with empty columns when slicing entire row. We have been finding that range ghosts appear in results from Hadoop via Pig."
+    },
+    {
+        "name": "F134",
+        "normalProcess": "Fix handling of tombstone by SSTableExport/Import. SSTableImport/Export don't handle tombstone well if value validation != BytesType. SSTableImport/Export use the value validator even on tomstone, but for those the value is the local deletion time, so this don't necessarily validate (with UTF8Type for instance)"
+    },
+    {
+        "name": "F135",
+        "normalProcess": "Fix ColumnIndexer to use long offsets. 2GB row size limit in ColumnIndex offset calculation. Index offset is calculated using int instead of long resulting in overflow at 2GB row size. As a result affected columns can not be retrieved."
+    },
+    {
+        "name": "F136",
+        "normalProcess": "Improved CLI exceptions. need initClause when catch Exception and throw new Exception in cli. we added initCause to the Cli such that we could see more meaningful exception stacktrace when certain exception is thrown."
+    },
+    {
+        "name": "F137",
+        "normalProcess": "Only count compaction as active (for throttling) when they have successfully acquired the compaction lock. Compaction throttling can be too slow. Compaction throttling needs to know how many active compactions are running (to divide bandwith for each active compaction). The way active compaction is counted can be broken because it counts the number of active threads in the executor BUT the thread starts by acquiring a lock."
+    },
+    {
+        "name": "F138",
+        "normalProcess": "Display CLI version string on startup. Cassandra-CLI command should have --version option. Implementing cassandra-cli --version command line option would make it easier to write bug reports and check the versions of tools in use. Or if you want to make it a CLI command inside the tool, I don't know. --version option seems to be the standard way."
+    },
+    {
+        "name": "F139",
+        "normalProcess": "Hadoop make CFIF try rpc_address or fallback to listen_address. Make CFIF use rpc_endpoint prior to trying endpoint. we probably need to attempt to use the rpc_endpoint address first, and then fall back to the gossip endpoint if we don't get what we want."
+    },
+    {
+        "name": "F140",
+        "normalProcess": "Hadoop accept comma delimited lists of initial thrift connections. Unify support across different map/reduce related classes for comma seperated list of hosts for initial thrift port connection."
+    },
+    {
+        "name": "F141",
+        "normalProcess": "ColumnFamily min_compaction_threshold should be >= 2. cassandra-cli allows setting min_compaction_threshold to 1."
+    },
+    {
+        "name": "F142",
+        "normalProcess": "Pig add 0.8+ types and key validation type in schema. Pig Storage Handler: Add >=0.8.1 types, Guess right type for Key in Schema."
+    },
+    {
+        "name": "F143",
+        "normalProcess": "Fix completely removing column metadata using CLI. unable to remove column metadata via CLI."
+    },
+    {
+        "name": "F144",
+        "normalProcess": "CLI `describe cluster;` output should be on separate lines for separate versions. Schema versions output should be on separate lines for separate versions."
+    },
+    {
+        "name": "F145",
+        "normalProcess": "Fix changing durable_writes keyspace option during CF creation. creating column family sets durable_writes to true."
+    },
+    {
+        "name": "F146",
+        "normalProcess": "Avoid locking on update when no indexes are involved. Avoid lock contention in hint rows.hint writes are keyed by target IP, to make replay efficient. However, this means that we'll hit a lot of lock contention in table.apply where we synchronize for potential index updates."
+    },
+    {
+        "name": "F147",
+        "normalProcess": "Fix assertionError during repair with ordered partitioners. AssertionError when adding a node and doing repair, repair hangs."
+    },
+    {
+        "name": "F148",
+        "normalProcess": "Correctly serialize key_validation_class for avro. CFM.toAvro() incorrectly serialises key_validation_class defn."
+    },
+    {
+        "name": "F149",
+        "normalProcess": "Don't expire counter tombstone after streaming. AssertionError in PrecompactedRow.write via CommutativeRowIndexer during bootstrap."
+    },
+    {
+        "name": "F150",
+        "normalProcess": "Prevent nodes that failed to join from hanging around forever. If node fails to join a ring it will stay in joining state indefinately. While attempting to add a new node to my ring something went wrong and I had to terminate the node on ec2. After this the node keeps appearing in the ring command in joining state and never goes away."
+    },
+    {
+        "name": "F151",
+        "normalProcess": "Remove incorrect optimization from slice read path. ReadResponseSerializer.serializedSize() calculation is wrong."
+    },
+    {
+        "name": "F152",
+        "normalProcess": "Fix race in AntiEntropyService. ConcurrentModificationException during nodetool repair."
     }
 ]

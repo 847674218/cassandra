@@ -20,10 +20,8 @@ package org.apache.cassandra.utils;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
@@ -83,6 +81,12 @@ public class ByteBufferUtil
         assert o1 != null;
         assert o2 != null;
 
+        if (o1.hasArray() && o2.hasArray())
+        {         
+            return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.position() + o1.arrayOffset(),
+                    o2.position() + o2.arrayOffset(), o1.remaining(), o2.remaining());
+        }
+        
         int minLength = Math.min(o1.remaining(), o2.remaining());
         for (int x = 0, i = o1.position(), j = o2.position(); x < minLength; x++, i++, j++)
         {
@@ -477,15 +481,15 @@ public class ByteBufferUtil
         for (int i = 0; i < size; i++)
         {
             final int bint = bytes.get(i+offset);
-            c[i * 2] = FBUtilities.byteToChar[(bint & 0xf0) >> 4];
-            c[1 + i * 2] = FBUtilities.byteToChar[bint & 0x0f];
+            c[i * 2] = Hex.byteToChar[(bint & 0xf0) >> 4];
+            c[1 + i * 2] = Hex.byteToChar[bint & 0x0f];
         }
-        return FBUtilities.wrapCharArray(c);
+        return Hex.wrapCharArray(c);
     }
 
     public static ByteBuffer hexToBytes(String str)
     {
-        return ByteBuffer.wrap(FBUtilities.hexToBytes(str));
+        return ByteBuffer.wrap(Hex.hexToBytes(str));
     }
 
     /**

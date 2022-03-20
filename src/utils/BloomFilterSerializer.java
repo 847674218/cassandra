@@ -26,31 +26,43 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DBConstants;
-import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
-class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
+public class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
     public void serialize(BloomFilter bf, DataOutput dos) throws IOException
     {
-        long[] bits = bf.bitset.getBits();
-        int bitLength = bits.length;
+        int bitLength = bf.bitset.getNumWords();
+        int pageSize = bf.bitset.getPageSize();
+        int pageCount = bf.bitset.getPageCount();
 
         dos.writeInt(bf.getHashCount());
         dos.writeInt(bitLength);
 
-        for (int i = 0; i < bitLength; i++)
-            dos.writeLong(bits[i]);
+        for (int p = 0; p < pageCount; p++)
+        {
+            long[] bits = bf.bitset.getPage(p);
+            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
+                dos.writeLong(bits[i]);
+        }
     }
 
     public BloomFilter deserialize(DataInput dis) throws IOException
     {
         int hashes = dis.readInt();
-        int bitLength = dis.readInt();
-        long[] bits = new long[bitLength];
-        for (int i = 0; i < bitLength; i++)
-            bits[i] = dis.readLong();
-        OpenBitSet bs = new OpenBitSet(bits, bitLength);
+        long bitLength = dis.readInt();
+        OpenBitSet bs = new OpenBitSet(bitLength << 6);
+        int pageSize = bs.getPageSize();
+        int pageCount = bs.getPageCount();
+
+        for (int p = 0; p < pageCount; p++)
+        {
+            long[] bits = bs.getPage(p);
+            for (int i = 0; i < pageSize && bitLength-- > 0; i++)
+                bits[i] = dis.readLong();
+        }
+
         return new BloomFilter(hashes, bs);
     }
 
@@ -62,10 +74,10 @@ class BloomFilterSerializer implements ICompactSerializer2<BloomFilter>
      *
      * @return serialized size of the given bloom filter
      */
-    public static int serializedSize(BloomFilter bf)
+    public long serializedSize(BloomFilter bf)
     {
         return DBConstants.intSize // hash count
                + DBConstants.intSize // length
-               + bf.bitset.getBits().length * DBConstants.longSize; // buckets
+               + bf.bitset.getNumWords() * DBConstants.longSize; // buckets
     }
 }

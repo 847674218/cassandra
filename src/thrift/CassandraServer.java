@@ -49,6 +49,10 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -57,6 +61,7 @@ import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -785,25 +790,43 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (keyspace == null || !Schema.instance.getNonSystemTables().contains(keyspace))
             throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
+
         List<TokenRange> ranges = new ArrayList<TokenRange>();
         Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
 
-        Map<Range, List<InetAddress>> address_map = StorageService.instance.getRangeToAddressMap(keyspace);
-        for (Map.Entry<Range, List<InetAddress>> entry : address_map.entrySet())
+        for (Map.Entry<Range, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
         {
             Range range = entry.getKey();
             List<String> endpoints = new ArrayList<String>();
             List<String> rpc_endpoints = new ArrayList<String>();
+            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
+
             for (InetAddress endpoint : entry.getValue())
             {
-                endpoints.add(endpoint.getHostAddress());
+                EndpointState eps = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+                EndpointDetails details = new EndpointDetails();
+
+                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+                    details.host = DatabaseDescriptor.getRpcAddress().getHostAddress();
+                else if (eps.getApplicationState(ApplicationState.RPC_ADDRESS) == null)
+                    details.host = endpoint.getHostAddress();
+                else
+                    details.host = eps.getApplicationState(ApplicationState.RPC_ADDRESS).value;
+
+                details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
+
+                endpoints.add(details.host);
                 rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
+
+                epDetails.add(details);
             }
 
-            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints);
-            tr.rpc_endpoints = rpc_endpoints;
+            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
+                            .setEndpoint_details(epDetails)
+                            .setRpc_endpoints(rpc_endpoints);
             ranges.add(tr);
         }
+
         return ranges;
     }
 
