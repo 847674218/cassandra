@@ -212,15 +212,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
         Set<DecoratedKey> savedKeys = keyCache.readSaved();
-        List<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table.name, columnFamilyName, false, false).entrySet())
-        {
-            SSTableReader reader = openSSTableReader(sstableFiles, savedKeys, data, metadata, partitioner);
-
-            if (reader != null) // if == null, logger errors where already fired
-                sstables.add(reader);
-        }
-        data.addSSTables(sstables);
+        Set<Map.Entry<Descriptor, Set<Component>>> entries = files(table.name, columnFamilyName, false, false).entrySet();
+        data.addSSTables(SSTableReader.batchOpen(entries, savedKeys, data, metadata, this.partitioner));
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
@@ -328,7 +321,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static void scrubDataDirectories(String table, String columnFamily)
     {
-        logger.info("Removing compacted SSTable files (see http://wiki.apache.org/cassandra/MemtableSSTable)");
+        logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", columnFamily);
+
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : files(table, columnFamily, true, true).entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
@@ -541,10 +535,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                          descriptor));
 
             logger.info("Initializing new SSTable {}", rawSSTable);
-            reader = openSSTableReader(rawSSTable, savedKeys, data, metadata, partitioner);
-
-            if (reader == null)
-                continue; // something wrong with SSTable, skipping
+            try
+            {
+                reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, data, metadata, partitioner);
+            }
+            catch (IOException e)
+            {
+                SSTableReader.logOpenException(rawSSTable.getKey(), e);
+                continue;
+            }
 
             sstables.add(reader);
 
@@ -814,8 +813,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
     {
-        for (IColumn c : cf)
+        Iterator<IColumn> iter = cf.iterator();
+        while (iter.hasNext())
         {
+            IColumn c = iter.next();
             ByteBuffer cname = c.name();
             // remove columns if
             // (a) the column itself is tombstoned or
@@ -823,7 +824,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
                 || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
-                cf.remove(cname);
+                iter.remove();
             }
         }
     }
@@ -838,15 +839,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             SuperColumn c = (SuperColumn)iter.next();
             long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
-            for (IColumn subColumn : c.getSubColumns())
+            Iterator<IColumn> subIter = c.getSubColumns().iterator();
+            while (subIter.hasNext())
             {
+                IColumn subColumn = subIter.next();
                 // remove subcolumns if
                 // (a) the subcolumn itself is tombstoned or
                 // (b) the supercolumn is tombstoned and the subcolumn is not newer than it
                 if (subColumn.timestamp() <= minTimestamp
                     || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
                 {
-                    c.remove(subColumn.name());
+                    subIter.remove();
                 }
             }
             if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)
@@ -880,6 +883,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return true;
         }
         return false;
+    }
+
+    public boolean isKeyExistenceExpensive(Set<? extends SSTable> sstablesToIgnore)
+    {
+        return compactionStrategy.isKeyExistenceExpensive(sstablesToIgnore);
     }
 
     /*
@@ -1120,17 +1128,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily)), Integer.MIN_VALUE, ThreadSafeSortedColumns.factory());
             if (cached == null)
                 return null;
-
-            if (!rowCache.isPutCopying())
-            {
-                // make a deep copy of column data so we don't keep references to direct buffers, which
-                // would prevent munmap post-compaction.
-                for (IColumn column : cached)
-                {
-                    cached.remove(column.name());
-                    cached.addColumn(column.localCopy(this));
-                }
-            }
 
             // avoid keeping a permanent reference to the original key buffer
             rowCache.put(new DecoratedKey(key.token, ByteBufferUtil.clone(key.key)), cached);
@@ -1813,7 +1810,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long[] getEstimatedColumnCountHistogram()
     {
-        return data.getEstimatedRowSizeHistogram();
+        return data.getEstimatedColumnCountHistogram();
     }
 
     /** true if this CFS contains secondary index data */
@@ -1901,30 +1898,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public List<String> getBuiltIndexes()
     {
        return indexManager.getBuiltIndexes();
-    }
-
-    private static SSTableReader openSSTableReader(Map.Entry<Descriptor, Set<Component>> rawSSTable,
-                                                   Set<DecoratedKey> savedKeys,
-                                                   DataTracker tracker,
-                                                   CFMetaData metadata,
-                                                   IPartitioner partitioner)
-    {
-        SSTableReader reader = null;
-
-        try
-        {
-            reader = SSTableReader.open(rawSSTable.getKey(), rawSSTable.getValue(), savedKeys, tracker, metadata, partitioner);
-        }
-        catch (FileNotFoundException ex)
-        {
-            logger.error("Missing sstable component in " + rawSSTable + "; skipped because of " + ex.getMessage());
-        }
-        catch (IOException ex)
-        {
-            logger.error("Corrupt sstable " + rawSSTable + "; skipped", ex);
-        }
-
-        return reader;
     }
 
     public int getUnleveledSSTables()

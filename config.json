@@ -1,5 +1,12 @@
 [
   {
+    "requirementDescription": "F23",
+    "type": "CLASS",
+    "fullyQualifiedName": "IMergeIterator.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
     "requirementDescription": "F1",
     "type": "CLASS",
     "fullyQualifiedName": "AllowAllAuthenticator.java",

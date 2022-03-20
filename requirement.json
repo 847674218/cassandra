@@ -190,5 +190,69 @@
     {
         "name": "F48",
         "normalProcess": "Streaming is a component which handles data (part of SSTable file) exchange among nodes in the cluster. When you bootstrap a new node, it gets data from existing nodes using streaming."
+    },
+    {
+        "name": "F49",
+        "normalProcess": "Update CQL to generate microsecond timestamps by default. cassandra-cli use micro second timestamp, but CQL use milli second. cassandra-cli set micro second timestamp by FBUtilities.timestampMicros. But CQL insert or update operation set milli second timestamp by AbstractModification.getTimestamp. If you register data by cassandra-cli, you can't update data by CQL. Because CQL timestamp is judged as past time."
+    },
+    {
+        "name": "F50",
+        "normalProcess": "Fix counting CFMetadata towards Memtable liveRatio. NPE in describe_ring. I have a 2 DC, 2 node per DC cluster. DC1 had it's seed replaced but I hadn't restarted. I upgraded to 0.8.4 in the following fashion: -edited seeds -stopped both DC1 nodes -upgraded jars -started both nodes at the same time The non-seed node came up first and showed the following error. Then when the seed node came up, the error went away on the non-seed node but started occurring on the seed node."
+    },
+    {
+        "name": "F51",
+        "normalProcess": "Kill server on wrapped OOME such as from FileChannel.map. When a mmap fails, Cassandra should exit."
+    },
+    {
+        "name": "F52",
+        "normalProcess": "remove unnecessary copy when adding to row cache. probably don't need to do full copy to row cache after un-mmap() change. If so, maybe slightly better performance in both speed and memory."
+    },
+    {
+        "name": "F53",
+        "normalProcess": "Log message when a full repair operation completes. Log message at INFO when a global or keyspace level repair operation completes. If JMX times out it's difficult to tell when repair completes.Right now we log at DEBUG for each column family but we need a way to tell when the repair operation completes as a whole."
+    },
+    {
+        "name": "F54",
+        "normalProcess": "Fix streamOutSession keeping sstables references forever if the remote end dies. A streamOutSession keeps sstables references forever if the remote end dies. A streamOutSession acquire a reference on the sstable it will stream and release them as soon as each sstable has been fully streamed. However, since a stream session has currently no means to know when it failed, we'll keep references indefinitely (meaning until next restart) if their is a failure. One way a stream session could very easily fail is if the remote end dies. We must make sure we correctly release sstable references when that happens."
+    },
+    {
+        "name": "F55",
+        "normalProcess": "Remove dynamic_snitch boolean from example configuration (defaulting to true) and set default badness threshold to 0.1. Remove ability to disable dynamic snitch entirely. We've moved dynamic snitch from new, default to off to well tested, default to true,and it's time now to take the next step to there is no reason to disable it, and keeping the option around just lets people shoot their foot off."
+    },
+    {
+        "name": "F56",
+        "normalProcess": "Base choice of random or balanced token on bootstrap on whether schema definitions were found. Nodes started at the same time end up with the same token. Since auto boostrap is defaulted to on when you start a cluster at once, you can end up with nodes being assigned the same token."
+    },
+    {
+        "name": "F57",
+        "normalProcess": "Fixes for LeveledCompactionStrategy score computation, prioritization, scheduling, and performance. LeveledCompactionStrategy is too complacent. BF size calculation doesn't take into account LCS breaking the output apart into bite sized sstables, so memory use is much higher than predicted. ManyToMany merging is slow. At least part of this is from running the full reducer machinery against single input sources, which can be optimized away."
+    },
+    {
+        "name": "F58",
+        "normalProcess": "Parallelize sstable open at server startup. Improve SSTableReader.load() when loading index files."
+    },
+    {
+        "name": "F59",
+        "normalProcess": "Fix handling of exceptions writing to Outbound Tcp Connection. Outbound Tcp Connection throws RuntimeException."
+    },
+    {
+        "name": "F60",
+        "normalProcess": "Allow using quotes in USE keyspace CLI command. In the CLI USE keyspace doesn't work for numeric keyspaces."
+    },
+    {
+        "name": "F61",
+        "normalProcess": "Don't allow any cache loading exceptions to halt startup. Failure reading a erroneous/spurious AutoSavingCache file can result in a failed application of a migration, which can prevent a node from reaching schema agreement."
+    },
+    {
+        "name": "F62",
+        "normalProcess": "Fix sstableloader --ignores option. sstableloader ignores option doesn't work correctly. The --ignores option is supposed to take an argument but it doesn't."
+    },
+    {
+        "name": "F63",
+        "normalProcess": "File descriptor limit increased in packaging. increase file descriptor limit in deb, rpm packages."
+    },
+    {
+        "name": "F64",
+        "normalProcess": "Fix deadlock in commit log during flush. inherent deadlock situation in commitLog flush."
     }
 ]
