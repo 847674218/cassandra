@@ -1,9 +1,338 @@
 [
   {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "AbstractSimplePerColumnSecondaryIndex.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "AllowAllAuthorizer.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "AuthenticateMessage.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F12",
+    "type": "CLASS",
+    "fullyQualifiedName": "AuthenticationStatement.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F12",
+    "type": "CLASS",
+    "fullyQualifiedName": "AuthorizationStatement.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "ColumnCounter.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F23",
+    "type": "CLASS",
+    "fullyQualifiedName": "ColumnIndex.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "ColumnIndex.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F25",
+    "type": "CLASS",
+    "fullyQualifiedName": "ColumnToCollectionType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "CompositesIndex.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F48",
+    "type": "CLASS",
+    "fullyQualifiedName": "CompressedFileStreamTask.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F35",
+    "type": "CLASS",
+    "fullyQualifiedName": "CompressedInputStream.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F35",
+    "type": "CLASS",
+    "fullyQualifiedName": "CompressionInfo.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F35",
+    "type": "CLASS",
+    "fullyQualifiedName": "CorruptBlockException.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F142",
+    "type": "CLASS",
+    "fullyQualifiedName": "DataType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F25",
+    "type": "CLASS",
+    "fullyQualifiedName": "DataType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "DropUserStatement.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F25",
+    "type": "CLASS",
+    "fullyQualifiedName": "EmptyType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F35",
+    "type": "CLASS",
+    "fullyQualifiedName": "FrameCompressor.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F27",
+    "type": "CLASS",
+    "fullyQualifiedName": "IDiskAtomFilter.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F32",
+    "type": "CLASS",
+    "fullyQualifiedName": "IEndpointLifecycleSubscriber.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F25",
+    "type": "CLASS",
+    "fullyQualifiedName": "InetAddressType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F14",
+    "type": "CLASS",
+    "fullyQualifiedName": "JdbcInetAddress.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "LegacyAuthenticator.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "LegacyAuthorizer.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F12",
+    "type": "CLASS",
+    "fullyQualifiedName": "ListUsersStatement.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F28",
+    "type": "CLASS",
+    "fullyQualifiedName": "LongToken.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F33",
+    "type": "CLASS",
+    "fullyQualifiedName": "MD5Digest.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F28",
+    "type": "CLASS",
+    "fullyQualifiedName": "Murmur3Partitioner.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "OnDiskAtom.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F25",
+    "type": "CLASS",
+    "fullyQualifiedName": "ParsedType.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F6",
+    "type": "CLASS",
+    "fullyQualifiedName": "RequestThreadPoolExecutor.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F23",
+    "type": "CLASS",
+    "fullyQualifiedName": "RowIndexEntry.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F32",
+    "type": "CLASS",
+    "fullyQualifiedName": "ServerConnection.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "SimpleAuthorizer.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F27",
+    "type": "CLASS",
+    "fullyQualifiedName": "SliceQueryPager.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F12",
+    "type": "CLASS",
+    "fullyQualifiedName": "ThriftClientState.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F13",
+    "type": "CLASS",
+    "fullyQualifiedName": "ThriftConversion.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F47",
+    "type": "CLASS",
+    "fullyQualifiedName": "ThriftSessionManager.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F28",
+    "type": "CLASS",
+    "fullyQualifiedName": "TokenSerializer.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F24",
+    "type": "CLASS",
+    "fullyQualifiedName": "TruncateException.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F47",
+    "type": "CLASS",
+    "fullyQualifiedName": "TServerFactory.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F5",
+    "type": "CLASS",
+    "fullyQualifiedName": "UserOptions.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "RowIndexEntry.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "OnDiskAtomIterator.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F8",
+    "type": "CLASS",
+    "fullyQualifiedName": "LazyColumnIterator.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "AllowAllInternodeAuthenticator.java",
+    "isNewTraceLink": false,
+    "isDeleted": true
+  },
+  {
     "requirementDescription": "F1",
     "type": "CLASS",
     "fullyQualifiedName": "SnitchProperties.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
@@ -11,7 +340,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "PendingRangeCalculatorService.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F27",
@@ -305,7 +634,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "AllowAllAuthority.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F1",
@@ -326,7 +655,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "IAuthority.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F1",
@@ -347,7 +676,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "SimpleAuthority.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F2",
@@ -382,7 +711,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "FreeableMemory.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F3",
@@ -732,7 +1061,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "JdbcBytes.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F14",
@@ -774,7 +1103,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "JdbcInt32.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F14",
@@ -900,7 +1229,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "ColumnIndexer.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F8",
@@ -1068,7 +1397,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "IColumnIterator.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F8",
@@ -1152,7 +1481,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "BooleanType.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F25",
@@ -1215,7 +1544,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "Int32Type.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F25",
@@ -1509,7 +1838,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "CollatingOrderPreservingPartitioner.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F28",
@@ -1607,7 +1936,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "GossipDigestAck2Message.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F33",
@@ -1621,7 +1950,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "GossipDigestAckMessage.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F33",
@@ -1635,7 +1964,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "GossipDigestSynMessage.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F33",
@@ -1692,13 +2021,6 @@
     "fullyQualifiedName": "IFailureNotification.java",
     "isNewTraceLink": false,
     "isDeleted": false
-  },
-  {
-    "requirementDescription": "F32",
-    "type": "CLASS",
-    "fullyQualifiedName": "PureRandom.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
   },
   {
     "requirementDescription": "F32",
@@ -1782,7 +2104,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "CorruptedBlockException.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F35",
@@ -2139,7 +2461,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "MessageProducer.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F43",
@@ -2356,7 +2678,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "StreamRequestMessage.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F48",

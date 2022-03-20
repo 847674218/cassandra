@@ -7,35 +7,35 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.ArrayListMultimap;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.cql3.operations.ColumnOperation;
+import org.apache.cassandra.cql3.operations.Operation;
+import org.apache.cassandra.cql3.operations.SetOperation;
+import org.apache.cassandra.cql3.operations.PreparedOperation;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.cql.QueryProcessor.validateColumnName;
 import static org.apache.cassandra.cql.QueryProcessor.validateKey;
-
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
-import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeForWrite;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
@@ -44,12 +44,12 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateCommutativeFo
 public class UpdateStatement extends ModificationStatement
 {
     private CFDefinition cfDef;
-    private final Map<ColumnIdentifier, Operation> columns;
+    private final List<Pair<ColumnIdentifier, Operation>> columns;
     private final List<ColumnIdentifier> columnNames;
-    private final List<Term> columnValues;
+    private final List<Operation> columnOperations;
     private final List<Relation> whereClause;
 
-    private final Map<ColumnIdentifier, Operation> processedColumns = new HashMap<ColumnIdentifier, Operation>();
+    private final ArrayListMultimap<CFDefinition.Name, Operation> processedColumns = ArrayListMultimap.create();
     private final Map<ColumnIdentifier, List<Term>> processedKeys = new HashMap<ColumnIdentifier, List<Term>>();
 
     /**
@@ -62,7 +62,7 @@ public class UpdateStatement extends ModificationStatement
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(CFName name,
-                           Map<ColumnIdentifier, Operation> columns,
+                           List<Pair<ColumnIdentifier, Operation>> columns,
                            List<Relation> whereClause,
                            Attributes attrs)
     {
@@ -71,7 +71,7 @@ public class UpdateStatement extends ModificationStatement
         this.columns = columns;
         this.whereClause = whereClause;
         this.columnNames = null;
-        this.columnValues = null;
+        this.columnOperations = null;
     }
 
     /**
@@ -81,40 +81,80 @@ public class UpdateStatement extends ModificationStatement
      *
      * @param name column family being operated on
      * @param columnNames list of column names
-     * @param columnValues list of column values (corresponds to names)
+     * @param columnOperations list of column 'set' operations (corresponds to names)
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
     public UpdateStatement(CFName name,
+                           Attributes attrs,
                            List<ColumnIdentifier> columnNames,
-                           List<Term> columnValues,
-                           Attributes attrs)
+                           List<Operation> columnOperations)
     {
         super(name, attrs);
 
         this.columnNames = columnNames;
-        this.columnValues = columnValues;
+        this.columnOperations = columnOperations;
         this.whereClause = null;
         this.columns = null;
     }
 
-    /** {@inheritDoc} */
-    public List<IMutation> getMutations(ClientState clientState, List<ByteBuffer> variables) throws InvalidRequestException
+    protected void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException
     {
-        // Check key
-        List<Term> keys = processedKeys.get(cfDef.key.name);
-        if (keys == null || keys.isEmpty())
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", cfDef.key));
+        if (type == Type.COUNTER)
+            cl.validateCounterForWrite(cfDef.cfm);
+        else
+            cl.validateForWrite(cfDef.cfm.ksName);
+    }
+
+    /** {@inheritDoc} */
+    public Collection<IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
+    throws RequestExecutionException, RequestValidationException
+    {
+        List<ByteBuffer> keys = buildKeyNames(cfDef, processedKeys, variables);
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
+        buildColumnNames(cfDef, processedKeys, builder, variables, true);
+
+        // Lists SET operation incurs a read.
+        Set<ByteBuffer> toRead = null;
+        for (Map.Entry<CFDefinition.Name, Operation> entry : processedColumns.entries())
+        {
+            CFDefinition.Name name = entry.getKey();
+            Operation value = entry.getValue();
+
+            if (!(name.type instanceof ListType))
+                continue;
+
+            if (value.requiresRead(name.type))
+            {
+                if (toRead == null)
+                    toRead = new TreeSet<ByteBuffer>(UTF8Type.instance);
+                toRead.add(name.name.key);
+            }
+        }
+
+        Map<ByteBuffer, ColumnGroupMap> rows = toRead != null ? readRows(keys, builder, toRead, (CompositeType)cfDef.cfm.comparator, local, cl) : null;
+
+        Collection<IMutation> mutations = new LinkedList<IMutation>();
+        UpdateParameters params = new UpdateParameters(variables, getTimestamp(now), getTimeToLive());
+
+        for (ByteBuffer key: keys)
+            mutations.add(mutationForKey(cfDef, key, builder, params, rows == null ? null : rows.get(key), cl));
+
+        return mutations;
+    }
+
+    // Returns the first empty component or null if none are
+    static CFDefinition.Name buildColumnNames(CFDefinition cfDef, Map<ColumnIdentifier, List<Term>> processed, ColumnNameBuilder builder, List<ByteBuffer> variables, boolean requireAllComponent)
+    throws InvalidRequestException
+    {
         CFDefinition.Name firstEmpty = null;
         for (CFDefinition.Name name : cfDef.columns.values())
         {
-            List<Term> values = processedKeys.get(name.name);
+            List<Term> values = processed.get(name.name);
             if (values == null || values.isEmpty())
             {
                 firstEmpty = name;
-                // For sparse, we must have all components
-                if (cfDef.isComposite && !cfDef.isCompact)
+                if (requireAllComponent && cfDef.isComposite && !cfDef.isCompact)
                     throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
             }
             else if (firstEmpty != null)
@@ -127,141 +167,114 @@ public class UpdateStatement extends ModificationStatement
                 builder.add(values.get(0), Relation.Type.EQ, variables);
             }
         }
+        return firstEmpty;
+    }
 
-        List<IMutation> rowMutations = new LinkedList<IMutation>();
-
-        for (Term key: keys)
+    static List<ByteBuffer> buildKeyNames(CFDefinition cfDef, Map<ColumnIdentifier, List<Term>> processed, List<ByteBuffer> variables)
+    throws InvalidRequestException
+    {
+        ColumnNameBuilder keyBuilder = cfDef.getKeyNameBuilder();
+        List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
+        for (CFDefinition.Name name : cfDef.keys.values())
         {
-            ByteBuffer rawKey = key.getByteBuffer(cfDef.key.type, variables);
-            rowMutations.add(mutationForKey(cfDef, clientState, rawKey, builder, variables));
-        }
+            List<Term> values = processed.get(name.name);
+            if (values == null || values.isEmpty())
+                throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
 
-        return rowMutations;
+            if (keyBuilder.remainingCount() == 1)
+            {
+                for (Term t : values)
+                    keys.add(keyBuilder.copy().add(t, Relation.Type.EQ, variables).build());
+            }
+            else
+            {
+                if (values.size() > 1)
+                    throw new InvalidRequestException("IN is only supported on the last column of the partition key");
+                keyBuilder.add(values.get(0), Relation.Type.EQ, variables);
+            }
+        }
+        return keys;
     }
 
     /**
      * Compute a row mutation for a single key
      *
-     * @param cfDef column family being operated on
-     * @param clientState user/session state
-     * @param key key to change
-     * @param builder ongoing column name accumulator for the current statement
-     * @param variables positional values
-     *
      * @return row mutation
      *
      * @throws InvalidRequestException on the wrong request
      */
-    private IMutation mutationForKey(CFDefinition cfDef, ClientState clientState, ByteBuffer key, ColumnNameBuilder builder, List<ByteBuffer> variables)
+    private IMutation mutationForKey(CFDefinition cfDef, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params, ColumnGroupMap group, ConsistencyLevel cl)
     throws InvalidRequestException
     {
         validateKey(key);
-        // if true we need to wrap RowMutation into CounterMutation
-        boolean hasCounterColumn = false;
 
         QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
         ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
+
+        // Inserting the CQL row marker (see #4361)
+        // We always need to insert a marker, because of the following situation:
+        //   CREATE TABLE t ( k int PRIMARY KEY, c text );
+        //   INSERT INTO t(k, c) VALUES (1, 1)
+        //   DELETE c FROM t WHERE k = 1;
+        //   SELECT * FROM t;
+        // The last query should return one row (but with c == null). Adding
+        // the marker with the insert make sure the semantic is correct (while making sure a
+        // 'DELETE FROM t WHERE k = 1' does remove the row entirely)
+        if (cfDef.isComposite && !cfDef.isCompact)
+        {
+            ByteBuffer name = builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
+            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        }
 
         if (cfDef.isCompact)
         {
             if (builder.componentCount() == 0)
                 throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s", cfDef.columns.values().iterator().next()));
 
-            Operation value = processedColumns.get(cfDef.value.name);
-            if (value == null)
-                throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
-            hasCounterColumn = addToMutation(clientState, cf, builder.build(), cfDef.value, value, variables);
+            Operation operation;
+            if (cfDef.value == null)
+            {
+                // No value was defined, we set to the empty value
+                operation = ColumnOperation.SetToEmpty();
+            }
+            else
+            {
+                List<Operation> operations = processedColumns.get(cfDef.value);
+                if (operations.isEmpty())
+                    throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
+                assert operations.size() == 1;
+                operation = operations.get(0);
+            }
+            operation.execute(cf, builder.copy(), cfDef.value == null ? null : cfDef.value.type, params, null);
         }
         else
         {
-            for (CFDefinition.Name name : cfDef.metadata.values())
+            for (Map.Entry<CFDefinition.Name, Operation> entry : processedColumns.entries())
             {
-                Operation value = processedColumns.get(name.name);
-                if (value == null)
-                    continue;
-
-                ByteBuffer colName = builder.copy().add(name.name.key).build();
-                hasCounterColumn |= addToMutation(clientState, cf, colName, name, value, variables);
+                CFDefinition.Name name = entry.getKey();
+                Operation op = entry.getValue();
+                op.execute(cf, builder.copy().add(name.name.key), name.type, params, group == null || !op.requiresRead(name.type) ? null : group.getCollection(name.name.key));
             }
         }
 
-        return (hasCounterColumn) ? new CounterMutation(rm, getConsistencyLevel()) : rm;
+        return type == Type.COUNTER ? new CounterMutation(rm, cl) : rm;
     }
 
-    private boolean addToMutation(ClientState clientState,
-                                  ColumnFamily cf,
-                                  ByteBuffer colName,
-                                  CFDefinition.Name valueDef,
-                                  Operation value,
-                                  List<ByteBuffer> variables) throws InvalidRequestException
+    public ParsedStatement.Prepared prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
     {
-        if (value.isUnary())
-        {
-            validateColumnName(colName);
-            ByteBuffer valueBytes = value.value.getByteBuffer(valueDef.type, variables);
-            Column c = timeToLive > 0
-                       ? new ExpiringColumn(colName, valueBytes, getTimestamp(clientState), timeToLive)
-                       : new Column(colName, valueBytes, getTimestamp(clientState));
-            cf.addColumn(c);
-            return false;
-        }
-        else
-        {
-            if (!valueDef.name.equals(value.ident))
-                throw new InvalidRequestException("Only expressions like X = X + <long> are supported.");
-
-            long val;
-            try
-            {
-                val = ByteBufferUtil.toLong(value.value.getByteBuffer(LongType.instance, variables));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new InvalidRequestException(String.format("'%s' is an invalid value, should be a long.",
-                            value.value.getText()));
-            }
-
-            if (value.type == Operation.Type.MINUS)
-            {
-                if (val == Long.MIN_VALUE)
-                    throw new InvalidRequestException("The negation of " + val + " overflows supported integer precision (signed 8 bytes integer)");
-                else
-                    val = -val;
-            }
-            cf.addCounter(new QueryPath(columnFamily(), null, colName), val);
-            return true;
-        }
-    }
-
-    public ParsedStatement.Prepared prepare(CFDefinition.Name[] boundNames) throws InvalidRequestException
-    {
-        boolean hasCommutativeOperation = false;
-
-        if (columns != null)
-        {
-            for (Map.Entry<ColumnIdentifier, Operation> column : columns.entrySet())
-            {
-                if (!column.getValue().isUnary())
-                    hasCommutativeOperation = true;
-
-                if (hasCommutativeOperation && column.getValue().isUnary())
-                    throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
-            }
-        }
-
         // Deal here with the keyspace overwrite thingy to avoid mistake
-        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily(), hasCommutativeOperation);
-        if (hasCommutativeOperation)
-            validateCommutativeForWrite(metadata, cLevel);
-
+        CFMetaData metadata = validateColumnFamily(keyspace(), columnFamily());
         cfDef = metadata.getCfDef();
+
+        type = metadata.getDefaultValidator().isCommutative() ? Type.COUNTER : Type.LOGGED;
 
         if (columns == null)
         {
             // Created from an INSERT
-            // Don't hate, validate.
-            if (columnNames.size() != columnValues.size())
+            if (type == Type.COUNTER)
+                throw new InvalidRequestException("INSERT statement are not allowed on counter tables, use UPDATE instead");
+            if (columnNames.size() != columnOperations.size())
                 throw new InvalidRequestException("unmatched column names/values");
             if (columnNames.size() < 1)
                 throw new InvalidRequestException("no columns specified for INSERT");
@@ -272,23 +285,25 @@ public class UpdateStatement extends ModificationStatement
                 if (name == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", columnNames.get(i)));
 
-                Term value = columnValues.get(i);
-                if (value.isBindMarker())
-                    boundNames[value.bindIndex] = name;
+                Operation operation = columnOperations.get(i);
+                operation.addBoundNames(name, boundNames);
 
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
                     case COLUMN_ALIAS:
                         if (processedKeys.containsKey(name.name))
-                            throw new InvalidRequestException(String.format("Multiple definition found for PRIMARY KEY part %s", name));
-                        processedKeys.put(name.name, Collections.singletonList(value));
+                            throw new InvalidRequestException(String.format("Multiple definitions found for PRIMARY KEY part %s", name));
+                        // We know collection are not accepted for key and column aliases
+                        if (operation.getType() != Operation.Type.COLUMN && operation.getType() != Operation.Type.PREPARED)
+                            throw new InvalidRequestException(String.format("Invalid definition for %s, not a collection type", name));
+                        processedKeys.put(name.name, operation.getValues());
                         break;
                     case VALUE_ALIAS:
                     case COLUMN_METADATA:
-                        if (processedColumns.containsKey(name.name))
-                            throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
-                        processedColumns.put(name.name, new Operation(value));
+                        if (processedColumns.containsKey(name))
+                            throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
+                        addNewOperation(name, operation);
                         break;
                 }
             }
@@ -296,42 +311,76 @@ public class UpdateStatement extends ModificationStatement
         else
         {
             // Created from an UPDATE
-            for (Map.Entry<ColumnIdentifier, Operation> entry : columns.entrySet())
+            for (Pair<ColumnIdentifier, Operation> entry : columns)
             {
-                CFDefinition.Name name = cfDef.get(entry.getKey());
+                CFDefinition.Name name = cfDef.get(entry.left);
                 if (name == null)
-                    throw new InvalidRequestException(String.format("Unknown identifier %s", entry.getKey()));
+                    throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
+
+                Operation operation = entry.right;
+
+                switch (operation.getType())
+                {
+                    case COUNTER:
+                        if (type != Type.COUNTER)
+                            throw new InvalidRequestException("Invalid counter operation on non-counter table.");
+                        break;
+                    case LIST:
+                    case SET:
+                    case MAP:
+                        if (!name.type.isCollection())
+                            throw new InvalidRequestException("Cannot apply collection operation on column " + name + " with " + name.type + " type.");
+                    // Fallthrough on purpose
+                    case COLUMN:
+                        if (type == Type.COUNTER)
+                            throw new InvalidRequestException("Invalid non-counter operation on counter table.");
+                        break;
+                    case PREPARED:
+                        if (type == Type.COUNTER && !((PreparedOperation)operation).isPotentialCounterOperation())
+                            throw new InvalidRequestException("Invalid non-counter operation on counter table.");
+                        break;
+                }
 
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
                     case COLUMN_ALIAS:
-                        throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.getKey()));
+                        throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
                     case VALUE_ALIAS:
                     case COLUMN_METADATA:
-                        if (processedColumns.containsKey(name.name))
-                            throw new InvalidRequestException(String.format("Multiple definition found for column %s", name));
-                        Operation op = entry.getValue();
-                        if (op.value.isBindMarker())
-                            boundNames[op.value.bindIndex] = name;
-                        processedColumns.put(name.name, op);
+                        for (Operation otherOp : processedColumns.get(name))
+                            if (otherOp.getType() == Operation.Type.COLUMN)
+                                throw new InvalidRequestException(String.format("Multiple definitions found for column %s", name));
+
+                        operation.addBoundNames(name, boundNames);
+                        addNewOperation(name, operation);
                         break;
                 }
             }
             processKeys(cfDef, whereClause, processedKeys, boundNames);
         }
 
-        return new ParsedStatement.Prepared(this, Arrays.<CFDefinition.Name>asList(boundNames));
+        return new ParsedStatement.Prepared(this, Arrays.<ColumnSpecification>asList(boundNames));
+    }
+
+    private void addNewOperation(CFDefinition.Name name, Operation operation)
+    {
+        // On the parser side, we're unable to differentiate an empty map from an empty set for add and set operations.
+        // Fix it now that we have the actual type.
+        if (operation.getType() == Operation.Type.SET && (name.type instanceof MapType))
+            operation = ((SetOperation)operation).maybeConvertToEmptyMapOperation();
+
+        processedColumns.put(name, operation);
     }
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        CFDefinition.Name[] names = new CFDefinition.Name[getBoundsTerms()];
+        ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
         return prepare(names);
     }
 
     // Reused by DeleteStatement
-    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, CFDefinition.Name[] names) throws InvalidRequestException
+    static void processKeys(CFDefinition cfDef, List<Relation> keys, Map<ColumnIdentifier, List<Term>> processed, ColumnSpecification[] names) throws InvalidRequestException
     {
         for (Relation rel : keys)
         {
@@ -352,7 +401,7 @@ public class UpdateStatement extends ModificationStatement
                         throw new InvalidRequestException(String.format("Invalid operator %s for key %s", rel.operator(), rel.getEntity()));
 
                     if (processed.containsKey(name.name))
-                        throw new InvalidRequestException(String.format("Multiple definition found for PRIMARY KEY part %s", name));
+                        throw new InvalidRequestException(String.format("Multiple definitions found for PRIMARY KEY part %s", name));
                     for (Term value : values)
                         if (value.isBindMarker())
                             names[value.bindIndex] = name;
@@ -367,12 +416,11 @@ public class UpdateStatement extends ModificationStatement
 
     public String toString()
     {
-        return String.format("UpdateStatement(name=%s, keys=%s, columns=%s, consistency=%s, timestamp=%s, timeToLive=%s)",
+        return String.format("UpdateStatement(name=%s, keys=%s, columns=%s, timestamp=%s, timeToLive=%s)",
                              cfName,
                              whereClause,
                              columns,
-                             getConsistencyLevel(),
-                             timestamp,
-                             timeToLive);
+                             isSetTimestamp() ? getTimestamp(-1) : "<now>",
+                             getTimeToLive());
     }
 }

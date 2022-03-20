@@ -7,19 +7,17 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.cql3;
 
 import java.util.Locale;
-import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -30,7 +28,7 @@ import org.apache.cassandra.cql3.statements.Selector;
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier implements Comparable<ColumnIdentifier>, Selector
+public class ColumnIdentifier extends Selector implements Comparable<ColumnIdentifier>
 {
     public final ByteBuffer key;
     private final String text;
@@ -76,15 +74,5 @@ public class ColumnIdentifier implements Comparable<ColumnIdentifier>, Selector
     public ColumnIdentifier id()
     {
         return this;
-    }
-
-    public boolean hasFunction()
-    {
-        return false;
-    }
-
-    public Selector.Function function()
-    {
-        return null;
     }
 }

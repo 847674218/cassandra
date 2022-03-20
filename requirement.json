@@ -2138,5 +2138,241 @@
     {
         "name": "F535",
         "normalProcess": "Make Ec2Region's datacenter name configurable. Make Ec2Region's datacenter name configurable."
+    },
+    {
+        "name": "F536",
+        "normalProcess": "Fix trying to load deleted row into row cache on startup. Nodes Don't Restart: Assertion Error on Serializing Cache provider."
+    },
+    {
+        "name": "F537",
+        "normalProcess": "Update offline scrub for 1.0 -> 1.1 directory structure. Offline scrub does not migrate the directory structure on migration from 1.0.x to 1.1.x and causes the keyspace to disappear."
+    },
+    {
+        "name": "F538",
+        "normalProcess": "Add tmp flag to Descriptor hashcode. CFS.scrubDataDirectories tries to delete nonexistent orphans."
+    },
+    {
+        "name": "F539",
+        "normalProcess": "Fix logging of Found table data in data directories when only system tables are present. DatabaseDescriptor.hasExistingNoSystemTables return true even with only system keyspace."
+    },
+    {
+        "name": "F540",
+        "normalProcess": "cli: Add JMX authentication support. cassandra-cli doesn't support JMX authentication."
+    },
+    {
+        "name": "F541",
+        "normalProcess": "nodetool: ability to repair specific range. Provide a nodetool command to repair subranges."
+    },
+    {
+        "name": "F542",
+        "normalProcess": "Fix possible assertion triggered in SliceFromReadCommand. Possible assertion triggered in SliceFromReadCommand."
+    },
+    {
+        "name": "F543",
+        "normalProcess": "cqlsh: Add inet type support on Windows (ipv4-only). inet datatype does not work with cqlsh on windows."
+    },
+    {
+        "name": "F544",
+        "normalProcess": "Fix race when initializing ColumnFamilyStore. Fix ColumnFamily opening race."
+    },
+    {
+        "name": "F545",
+        "normalProcess": "Add UseTLAB JVM flag. Enable ThreadLocal allocation in the JVM."
+    },
+    {
+        "name": "F546",
+        "normalProcess": "cli: Quote ks and cf names in schema output when needed. cassandra-cli should escape keyspace name."
+    },
+    {
+        "name": "F547",
+        "normalProcess": "Fix bad default for min/max timestamp in SSTableMetadata. Broken default values for min/max timestamp."
+    },
+    {
+        "name": "F548",
+        "normalProcess": "Fix cf name extraction from manifest in Directories.migrateFile(). Directories.migrateFile() does not handle -old or -tmp LDB manifests."
+    },
+    {
+        "name": "F549",
+        "normalProcess": "Support pluggable internode authentication. Pluggable security feature to prevent node from joining a cluster and running destructive commands."
+    },
+    {
+        "name": "F550",
+        "normalProcess": "Replace mistaken usage of commons-logging with slf4j. use slf4j not commons-logging."
+    },
+    {
+        "name": "F551",
+        "normalProcess": "Remove buggy thrift max message length option. thrift_max_message_length_in_mb makes long-lived connections error out."
+    },
+    {
+        "name": "F552",
+        "normalProcess": "Add retry mechanism to OTC for non-droppable_verbs. Add retry mechanism to OTC for non-droppable_verbs."
+    },
+    {
+        "name": "F553",
+        "normalProcess": "Use allocator information to improve memtable memory usage estimate. Use allocator information to improve memtable memory usage estimate."
+    },
+    {
+        "name": "F554",
+        "normalProcess": "Fsync leveled manifest to avoid corruption. Manifest file not fsynced."
+    },
+    {
+        "name": "F555",
+        "normalProcess": "Fix Bound intersection computation. intersects the bounds not right."
+    },
+    {
+        "name": "F556",
+        "normalProcess": "Fix NPE in Pig's widerow mode. CassandraStorage throws NullPointerException (NPE) when widerows is set to 'true'."
+    },
+    {
+        "name": "F557",
+        "normalProcess": "Stream undelivered hints on decommission. Stream hints on decommission."
+    },
+    {
+        "name": "F558",
+        "normalProcess": "GossipingPropertyFileSnitch loads saved dc/rack info if needed. Nodes can't rejoin after stopping, when using GossipingPropertyFileSnitch."
+    },
+    {
+        "name": "F559",
+        "normalProcess": "Drain should flush system CFs too. nodetool drain sometimes doesn't mark commitlog fully flushed."
+    },
+    {
+        "name": "F560",
+        "normalProcess": "Add inter_dc_tcp_nodelay setting. Add option to disable tcp_nodelay."
+    },
+    {
+        "name": "F561",
+        "normalProcess": "Re-allow wrapping ranges for start_token/end_token range pairing. Stock example for using pig throws InvalidRequestException(why:Start token sorts after end token)."
+    },
+    {
+        "name": "F562",
+        "normalProcess": "Fix validation compaction of empty rows. repair -pr triggers an Assertion."
+    },
+    {
+        "name": "F563",
+        "normalProcess": "Nodetool methods to enable/disable hint storage/delivery. Add jmx/nodetool methods to enable/disable hinted handoff."
+    },
+    {
+        "name": "F564",
+        "normalProcess": "Disallow bloom filter false positive chance of 0. disallow bloom filter false positive chance of 0."
+    },
+    {
+        "name": "F565",
+        "normalProcess": "Add threadpool size adjustment methods to JMXEnabledThreadPoolExecutor and CompactionManagerMBean. Allow resizing of threadpools via JMX."
+    },
+    {
+        "name": "F566",
+        "normalProcess": "Fix hinting for dropped local writes. Timeout reporter writes hints for the local node."
+    },
+    {
+        "name": "F567",
+        "normalProcess": "Off-heap cache doesn't need mutable column container. Cache reads don't need to be mutable if we're using the off-heap (copying) cache."
+    },
+    {
+        "name": "F568",
+        "normalProcess": "Apply disk_failure_policy to bad disks on initial directory creation. Bad disk causes death of node despite disk_failure_policy."
+    },
+    {
+        "name": "F569",
+        "normalProcess": "Optimize name-based queries to use ArrayBackedSortedColumns. Small CollationController refactoring and CFS.getRawCachedRow(DecoratedKey) fix."
+    },
+    {
+        "name": "F570",
+        "normalProcess": "Fall back to old manifest if most recent is unparseable. Change LeveledManifest to try to load old and tmp json files."
+    },
+    {
+        "name": "F571",
+        "normalProcess": "Pool [Compressed]RandomAccessReader objects on the partitioned read path. Pool [Compressed]RandomAccessReader on the partitioned read path."
+    },
+    {
+        "name": "F572",
+        "normalProcess": "Add debug logging to list filenames processed by Directories.migrateFile method. Add debug logging to list filenames processed by o.a.c.db.Directories.migrateFile method."
+    },
+    {
+        "name": "F573",
+        "normalProcess": "Expose black-listed directories via JMX. Expose black-listed directories via JMX."
+    },
+    {
+        "name": "F574",
+        "normalProcess": "Log compaction merge counts. log number of combined/merged rows during a compaction."
+    },
+    {
+        "name": "F575",
+        "normalProcess": "Minimize byte array allocation by AbstractData{Input,Output}. Minimize byte array allocation by AbstractData{Input, Output}."
+    },
+    {
+        "name": "F576",
+        "normalProcess": "Add SSL support for the binary protocol. Add ssl support to binary protocol."
+    },
+    {
+        "name": "F577",
+        "normalProcess": "Allow non-schema system ks modification for shuffle to work. cassandra-shuffle fails as system keyspace is not user-modifiable."
+    },
+    {
+        "name": "F578",
+        "normalProcess": "cqlsh: Add default limit to SELECT statements. Move add a default limit logic to cqlsh."
+    },
+    {
+        "name": "F579",
+        "normalProcess": "cqlsh: fix DESCRIBE for 1.1 cfs in CQL3. describe commands fail in cql3 when previously created with cql2."
+    },
+    {
+        "name": "F580",
+        "normalProcess": "Correctly gossip with nodes >= 1.1.7. upgrading from 1.1.7 to 1.2.0 caused upgraded nodes to only know about other 1.2.0 nodes."
+    },
+    {
+        "name": "F581",
+        "normalProcess": "Ensure CL guarantees on digest mismatch. RepairCallback breaks CL guarantees."
+    },
+    {
+        "name": "F582",
+        "normalProcess": "Validate correctly selects on composite partition key. Select on composite partition keys are not validated correctly."
+    },
+    {
+        "name": "F583",
+        "normalProcess": "Fix exception when adding collection. CQL 3 ALTER TABLE ... ADD causes OOB."
+    },
+    {
+        "name": "F584",
+        "normalProcess": "Handle states for non-vnode clusters correctly. unsafeAssassinateEndpoint throws NullPointerException and fails to remove node from gossip."
+    },
+    {
+        "name": "F585",
+        "normalProcess": "Refuse unrecognized replication and compaction strategy options. replication, compaction, compression? options are not validated."
+    },
+    {
+        "name": "F586",
+        "normalProcess": "Pick the correct value validator in sstable2json for cql3 tables. sstable2json always returns default value validator."
+    },
+    {
+        "name": "F587",
+        "normalProcess": "Validate login for describe_keyspace, describe_keyspaces and set_keyspace. Validate login for Thrift describe_keyspace, describe_keyspaces and set_keyspace methods."
+    },
+    {
+        "name": "F588",
+        "normalProcess": "Fix inserting empty maps. Can not insert an empty map."
+    },
+    {
+        "name": "F589",
+        "normalProcess": "Don't remove tokens from System table for node we know. system.peers.tokens is empty after node restart."
+    },
+    {
+        "name": "F590",
+        "normalProcess": "Fix streaming progress report for compresed files. streaming from another node results in a bogus % streamed on that sstable."
+    },
+    {
+        "name": "F591",
+        "normalProcess": "Coverage analysis for low-CL queries. Coverage analysis for low-CL queries."
+    },
+    {
+        "name": "F592",
+        "normalProcess": "Stop interpreting dates as valid timeUUID value. Less than operator when comparing timeuuids behaves as less than equal."
+    },
+    {
+        "name": "F593",
+        "normalProcess": "Adds E notation for floating point numbers. E notation is not implemented for floating point numbers."
+    },
+    {
+        "name": "F594",
+        "normalProcess": "Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was intended. Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was the intention."
     }
 ]

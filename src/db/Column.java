@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,18 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.*;
@@ -43,12 +40,17 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class Column implements IColumn
 {
-    private static Logger logger = LoggerFactory.getLogger(Column.class);
-    private static ColumnSerializer serializer = new ColumnSerializer();
+    private static final ColumnSerializer serializer = new ColumnSerializer();
+    private static final OnDiskAtom.Serializer onDiskSerializer = new OnDiskAtom.Serializer(serializer);
 
     public static ColumnSerializer serializer()
     {
         return serializer;
+    }
+
+    public static OnDiskAtom.Serializer onDiskSerializer()
+    {
+        return onDiskSerializer;
     }
 
     protected final ByteBuffer name;
@@ -100,6 +102,11 @@ public class Column implements IColumn
         return timestamp;
     }
 
+    public long minTimestamp()
+    {
+        return timestamp;
+    }
+
     public long maxTimestamp()
     {
         return timestamp;
@@ -125,7 +132,12 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public int size()
+    public int dataSize()
+    {
+        return name().remaining() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
+    }
+
+    public int serializedSize(TypeSizes typeSizes)
     {
         /*
          * Size of a column is =
@@ -135,16 +147,14 @@ public class Column implements IColumn
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-        return DBConstants.shortSize + name.remaining() + 1 + DBConstants.tsSize + DBConstants.intSize + value.remaining();
+        int nameSize = name.remaining();
+        int valueSize = value.remaining();
+        return typeSizes.sizeof((short) nameSize) + nameSize + 1 + typeSizes.sizeof(timestamp) + typeSizes.sizeof(valueSize) + valueSize;
     }
 
-    /*
-     * This returns the size of the column when serialized.
-     * @see com.facebook.infrastructure.db.IColumn#serializedSize()
-    */
-    public int serializedSize()
+    public long serializedSizeForSSTable()
     {
-        return size();
+        return serializedSize(TypeSizes.NATIVE);
     }
 
     public int serializationFlags()
@@ -310,6 +320,11 @@ public class Column implements IColumn
     public static Column create(ByteBuffer value, long timestamp, String... names)
     {
         return new Column(decomposeName(names), value, timestamp);
+    }
+
+    public static Column create(InetAddress value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), InetAddressType.instance.decompose(value), timestamp);
     }
 
     static ByteBuffer decomposeName(String... names)

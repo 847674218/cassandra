@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,16 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.net.InetAddress;
 import java.security.MessageDigest;
-import java.util.concurrent.TimeoutException;
-import java.util.Collection;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,13 +34,13 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.context.IContext.ContextRelationship;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.service.IWriteResponseHandler;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.*;
 
 /**
@@ -95,13 +95,19 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public int size()
+    public int dataSize()
     {
         /*
          * A counter column adds to a Column :
          *  + 8 bytes for timestampOfLastDelete
          */
-        return super.size() + DBConstants.tsSize;
+        return super.dataSize() + TypeSizes.NATIVE.sizeof(timestampOfLastDelete);
+    }
+
+    @Override
+    public int serializedSize(TypeSizes typeSizes)
+    {
+        return super.serializedSize(typeSizes) + typeSizes.sizeof(timestampOfLastDelete);
     }
 
     @Override
@@ -245,16 +251,16 @@ public class CounterColumn extends Column
     }
 
     /**
-     * Check if a given nodeId is found in this CounterColumn context.
+     * Check if a given counterId is found in this CounterColumn context.
      */
-    public boolean hasNodeId(NodeId id)
+    public boolean hasCounterId(CounterId id)
     {
-        return contextManager.hasNodeId(value(), id);
+        return contextManager.hasCounterId(value(), id);
     }
 
     private CounterColumn computeOldShardMerger(int mergeBefore)
     {
-        ByteBuffer bb = contextManager.computeOldShardMerger(value(), NodeId.getOldLocalNodeIds(), mergeBefore);
+        ByteBuffer bb = contextManager.computeOldShardMerger(value(), CounterId.getOldLocalCounterIds(), mergeBefore);
         if (bb == null)
             return null;
         else
@@ -360,7 +366,7 @@ public class CounterColumn extends Column
         return new CounterColumn(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
     }
 
-    private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws UnavailableException, TimeoutException, IOException
+    private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws RequestExecutionException, IOException
     {
         RowMutation rm = new RowMutation(cf.metadata().ksName, key.key);
         rm.add(cf);
@@ -370,15 +376,16 @@ public class CounterColumn extends Column
 
         StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
-            public void apply(IMutation mutation, Collection<InetAddress> targets, IWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws IOException, TimeoutException
+            public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
+            throws IOException, OverloadedException
             {
                 // We should only send to the remote replica, not the local one
-                targets.remove(local);
+                Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(local));
                 // Fake local response to be a good lad but we won't wait on the responseHandler
                 responseHandler.response(null);
-                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
+                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, remotes, responseHandler, localDataCenter, consistency_level);
             }
-        }, null);
+        }, null, WriteType.SIMPLE);
 
         // we don't wait for answers
     }

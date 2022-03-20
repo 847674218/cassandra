@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.sstable;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -9,17 +7,15 @@ package org.apache.cassandra.io.sstable;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 
@@ -38,7 +34,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
 
-    private final DecoratedKey<?> key;
+    private final DecoratedKey key;
     private final DataInput input;
     private final long dataStart;
     public final long dataSize;
@@ -46,14 +42,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     private final ColumnFamily columnFamily;
     private final int columnCount;
-    private long columnPosition;
+    private final long columnPosition;
 
-    private BytesReadTracker inputWithTracker; // tracks bytes read
+    private final OnDiskAtom.Serializer atomSerializer;
+    private final Descriptor.Version dataVersion;
+
+    private final BytesReadTracker inputWithTracker; // tracks bytes read
 
     // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
     private final int expireBefore;
 
     private final boolean validateColumns;
+    private final String filename;
 
     /**
      * Used to iterate through the columns of a row.
@@ -64,8 +64,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataSize length of row data
      * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize)
-    throws IOException
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize)
     {
         this(sstable, file, key, dataStart, dataSize, false);
     }
@@ -78,25 +77,33 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param dataStart Data for this row starts at this pos.
      * @param dataSize length of row data
      * @param checkData if true, do its best to deserialize and check the coherence of row data
-     * @throws IOException
      */
-    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData)
-    throws IOException
+    public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataStart, long dataSize, boolean checkData)
     {
-        this(sstable.metadata, file, key, dataStart, dataSize, checkData, sstable, IColumnSerializer.Flag.LOCAL);
+        this(sstable.metadata, file, file.getPath(), key, dataStart, dataSize, checkData, sstable, IColumnSerializer.Flag.LOCAL);
     }
 
-    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, DecoratedKey<?> key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
-    throws IOException
+    // Must only be used against current file format
+    public SSTableIdentityIterator(CFMetaData metadata, DataInput file, String filename, DecoratedKey key, long dataStart, long dataSize, IColumnSerializer.Flag flag)
     {
-        this(metadata, file, key, dataStart, dataSize, false, null, flag);
+        this(metadata, file, filename, key, dataStart, dataSize, false, null, flag);
     }
 
-    // sstable may be null *if* deserializeRowHeader is false
-    private SSTableIdentityIterator(CFMetaData metadata, DataInput input, DecoratedKey<?> key, long dataStart, long dataSize, boolean checkData, SSTableReader sstable, IColumnSerializer.Flag flag)
-    throws IOException
+    // sstable may be null *if* checkData is false
+    // If it is null, we assume the data is in the current file format
+    private SSTableIdentityIterator(CFMetaData metadata,
+                                    DataInput input,
+                                    String filename,
+                                    DecoratedKey key,
+                                    long dataStart,
+                                    long dataSize,
+                                    boolean checkData,
+                                    SSTableReader sstable,
+                                    IColumnSerializer.Flag flag)
     {
+        assert !checkData || (sstable != null);
         this.input = input;
+        this.filename = filename;
         this.inputWithTracker = new BytesReadTracker(input);
         this.key = key;
         this.dataStart = dataStart;
@@ -104,6 +111,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.expireBefore = (int)(System.currentTimeMillis() / 1000);
         this.flag = flag;
         this.validateColumns = checkData;
+        this.dataVersion = sstable == null ? Descriptor.Version.CURRENT : sstable.descriptor.version;
 
         try
         {
@@ -114,11 +122,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 if (dataStart + dataSize > file.length())
                     throw new IOException(String.format("dataSize of %s starting at %s would be larger than file %s length %s",
                                           dataSize, dataStart, file.getPath(), file.length()));
-                if (checkData)
+                if (checkData && !sstable.descriptor.version.hasPromotedIndexes)
                 {
                     try
                     {
-                        IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.usesOldBloomFilter);
+                        IndexHelper.defreezeBloomFilter(file, dataSize, sstable.descriptor.version.filterType);
                     }
                     catch (Exception e)
                     {
@@ -126,10 +134,11 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                             throw (EOFException) e;
 
                         logger.debug("Invalid bloom filter in {}; will rebuild it", sstable);
-                        // deFreeze should have left the file position ready to deserialize index
                     }
+
                     try
                     {
+                        // deFreeze should have left the file position ready to deserialize index
                         IndexHelper.deserializeIndex(file);
                     }
                     catch (Exception e)
@@ -141,23 +150,26 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 }
             }
 
-            IndexHelper.skipBloomFilter(inputWithTracker);
-            IndexHelper.skipIndex(inputWithTracker);
+            if (sstable != null && !sstable.descriptor.version.hasPromotedIndexes)
+            {
+                IndexHelper.skipBloomFilter(inputWithTracker);
+                IndexHelper.skipIndex(inputWithTracker);
+            }
             columnFamily = ColumnFamily.create(metadata);
-            ColumnFamily.serializer().deserializeFromSSTableNoColumns(columnFamily, inputWithTracker);
+            columnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(inputWithTracker, dataVersion));
+            atomSerializer = columnFamily.getOnDiskSerializer();
             columnCount = inputWithTracker.readInt();
-
             columnPosition = dataStart + inputWithTracker.getBytesRead();
         }
         catch (IOException e)
         {
             if (sstable != null)
                 sstable.markSuspect();
-            throw new IOError(e);
+            throw new CorruptSSTableException(e, filename);
         }
     }
 
-    public DecoratedKey<?> getKey()
+    public DecoratedKey getKey()
     {
         return key;
     }
@@ -172,22 +184,22 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         return inputWithTracker.getBytesRead() < dataSize;
     }
 
-    public IColumn next()
+    public OnDiskAtom next()
     {
         try
         {
-            IColumn column = columnFamily.getColumnSerializer().deserialize(inputWithTracker, flag, expireBefore);
+            OnDiskAtom atom = atomSerializer.deserializeFromSSTable(inputWithTracker, flag, expireBefore, dataVersion);
             if (validateColumns)
-                column.validateFields(columnFamily.metadata());
-            return column;
+                atom.validateFields(columnFamily.metadata());
+            return atom;
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new CorruptSSTableException(e, filename);
         }
-        catch (MarshalException e)
+        catch (MarshalException me)
         {
-            throw new IOError(new IOException("Error validating row " + key, e));
+            throw new CorruptSSTableException(me, filename);
         }
     }
 
@@ -196,7 +208,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         throw new UnsupportedOperationException();
     }
 
-    public void close() throws IOException
+    public void close()
     {
         // creator is responsible for closing file when finished
     }
@@ -215,23 +227,12 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public void echoData(DataOutput out) throws IOException
-    {
-        if (!(input instanceof RandomAccessReader))
-            throw new UnsupportedOperationException();
-
-        ((RandomAccessReader) input).seek(dataStart);
-        inputWithTracker.reset(0);
-        while (inputWithTracker.getBytesRead() < dataSize)
-            out.write(inputWithTracker.readByte());
-    }
-
-    public ColumnFamily getColumnFamilyWithColumns() throws IOException
+    public ColumnFamily getColumnFamilyWithColumns(ISortedColumns.Factory containerFactory) throws IOException
     {
         assert inputWithTracker.getBytesRead() == headerSize();
-        ColumnFamily cf = columnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory(), false);
+        ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
         // since we already read column count, just pass that value and continue deserialization
-        ColumnFamily.serializer().deserializeColumns(inputWithTracker, cf, columnCount, flag);
+        columnFamily.serializer.deserializeColumnsFromSSTable(inputWithTracker, cf, columnCount, flag, expireBefore, dataVersion);
         if (validateColumns)
         {
             try
@@ -240,7 +241,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             }
             catch (MarshalException e)
             {
-                throw new IOException("Error validating row " + key, e);
+                throw new RuntimeException("Error validating row " + key, e);
             }
         }
         return cf;
@@ -262,14 +263,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             throw new UnsupportedOperationException();
 
         RandomAccessReader file = (RandomAccessReader) input;
-        try
-        {
-            file.seek(columnPosition);
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        file.seek(columnPosition);
         inputWithTracker.reset(headerSize());
     }
 

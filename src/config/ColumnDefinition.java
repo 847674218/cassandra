@@ -1,6 +1,4 @@
-package org.apache.cassandra.config;
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -9,20 +7,17 @@ package org.apache.cassandra.config;
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.config;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import com.google.common.collect.Maps;
@@ -32,6 +27,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -63,31 +59,6 @@ public class ColumnDefinition
         this.validator = validator;
         this.componentIndex = componentIndex;
         this.setIndexType(index_type, index_options);
-    }
-
-    public static ColumnDefinition ascii(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), AsciiType.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition bool(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), BooleanType.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition utf8(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), UTF8Type.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition int32(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), Int32Type.instance, null, null, null, cidx);
-    }
-
-    public static ColumnDefinition double_(String name, Integer cidx)
-    {
-        return new ColumnDefinition(ByteBufferUtil.bytes(name), DoubleType.instance, null, null, null, cidx);
     }
 
     public ColumnDefinition clone()
@@ -145,7 +116,7 @@ public class ColumnDefinition
         return cd;
     }
 
-    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws ConfigurationException
+    public static ColumnDefinition fromThrift(ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
     {
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
                                     TypeParser.parse(thriftColumnDef.validation_class),
@@ -155,7 +126,7 @@ public class ColumnDefinition
                                     null);
     }
 
-    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws ConfigurationException
+    public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
             return new HashMap<ByteBuffer,ColumnDefinition>();
@@ -254,14 +225,14 @@ public class ColumnDefinition
                 if (result.has("component_index"))
                     componentIndex = result.getInt("component_index");
 
-                cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column")),
+                cds.add(new ColumnDefinition(cfm.getColumnDefinitionComparator(componentIndex).fromString(result.getString("column_name")),
                                              TypeParser.parse(result.getString("validator")),
                                              index_type,
                                              index_options,
                                              index_name,
                                              componentIndex));
             }
-            catch (ConfigurationException e)
+            catch (RequestValidationException e)
             {
                 throw new RuntimeException(e);
             }

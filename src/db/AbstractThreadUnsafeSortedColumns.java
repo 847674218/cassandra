@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,10 +19,7 @@ package org.apache.cassandra.db;
 
 import java.util.Iterator;
 
-import com.google.common.base.Function;
-
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.Allocator;
 
 public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
@@ -30,7 +27,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public AbstractThreadUnsafeSortedColumns()
     {
-        deletionInfo = new DeletionInfo();
+        deletionInfo = DeletionInfo.LIVE;
     }
 
     public DeletionInfo getDeletionInfo()
@@ -40,16 +37,17 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public void delete(DeletionInfo newInfo)
     {
-        if (deletionInfo.markedForDeleteAt < newInfo.markedForDeleteAt)
-            // since deletion info is immutable, aliasing it is fine
-            deletionInfo = newInfo;
+        deletionInfo = deletionInfo.add(newInfo);
+    }
+
+    public void setDeletionInfo(DeletionInfo newInfo)
+    {
+        deletionInfo = newInfo;
     }
 
     public void maybeResetDeletionTimes(int gcBefore)
     {
-        // Update if it's not MIN_VALUE anymore and it has expired
-        if (deletionInfo.localDeletionTime <= gcBefore)
-            deletionInfo = new DeletionInfo();
+        deletionInfo = deletionInfo.purge(gcBefore);
     }
 
     public void retainAll(ISortedColumns columns)
@@ -88,14 +86,6 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
             current = iter.hasNext() ? iter.next() : null;
         }
     }
-
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
-    {
-        // sizeDelta is only needed by memtable updates which should not be using thread-unsafe containers
-        throw new UnsupportedOperationException();
-    }
-
-    public abstract void addAll(ISortedColumns columns, Allocator allocator, Function<IColumn, IColumn> transformation);
 
     public boolean isEmpty()
     {

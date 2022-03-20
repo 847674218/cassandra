@@ -21,12 +21,24 @@ package org.apache.cassandra.cql3.statements;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.marshal.*;
 
-public interface Selector
+public abstract class Selector
 {
     public enum Function
     {
-        WRITE_TIME, TTL;
+        WRITE_TIME      (LongType.instance),
+        TTL             (Int32Type.instance),
+        DATE_OF         (DateType.instance),
+        UNIXTIMESTAMP_OF(LongType.instance);
+
+        public final AbstractType<?> resultType;
+
+        private Function(AbstractType<?> resultType)
+        {
+            this.resultType = resultType;
+        }
 
         @Override
         public String toString()
@@ -37,16 +49,38 @@ public interface Selector
                     return "writetime";
                 case TTL:
                     return "ttl";
+                case DATE_OF:
+                    return "dateof";
+                case UNIXTIMESTAMP_OF:
+                    return "unixtimestampof";
             }
             throw new AssertionError();
         }
     }
 
-    public ColumnIdentifier id();
-    public boolean hasFunction();
-    public Function function();
+    public abstract ColumnIdentifier id();
 
-    public static class WithFunction implements Selector
+    public boolean hasFunction()
+    {
+        return false;
+    }
+
+    public Function function()
+    {
+        return null;
+    }
+
+    public boolean hasKey()
+    {
+        return false;
+    }
+
+    public Term key()
+    {
+        return null;
+    }
+
+    public static class WithFunction extends Selector
     {
         private final Function function;
         private final ColumnIdentifier id;
@@ -93,6 +127,55 @@ public interface Selector
         public String toString()
         {
             return function + "(" + id + ")";
+        }
+    }
+
+    public static class WithKey extends Selector
+    {
+        private final ColumnIdentifier id;
+        private final Term key;
+
+        public WithKey(ColumnIdentifier id, Term key)
+        {
+            this.id = id;
+            this.key = key;
+        }
+
+        public ColumnIdentifier id()
+        {
+            return id;
+        }
+
+        @Override
+        public boolean hasKey()
+        {
+            return true;
+        }
+
+        public Term key()
+        {
+            return key;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return Objects.hashCode(id, key);
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof WithKey))
+                return false;
+            WithKey that = (WithKey)o;
+            return id().equals(that.id()) && key.equals(that.key);
+        }
+
+        @Override
+        public String toString()
+        {
+            return id + "[" + key + "]";
         }
     }
 }

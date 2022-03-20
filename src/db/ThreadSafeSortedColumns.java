@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 import com.google.common.base.Function;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -97,21 +99,21 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         {
             IColumn oldColumn = map.putIfAbsent(name, column);
             if (oldColumn == null)
-                return column.serializedSize();
+                return column.dataSize();
 
             if (oldColumn instanceof SuperColumn)
             {
                 assert column instanceof SuperColumn;
-                long previousSize = oldColumn.serializedSize();
+                long previousSize = oldColumn.dataSize();
                 ((SuperColumn) oldColumn).putColumn((SuperColumn)column, allocator);
-                return oldColumn.serializedSize() - previousSize;
+                return oldColumn.dataSize() - previousSize;
             }
             else
             {
                 // calculate reconciled col from old (existing) col and new col
                 IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
                 if (map.replace(name, oldColumn, reconciledColumn))
-                    return reconciledColumn.serializedSize() - oldColumn.serializedSize();
+                    return reconciledColumn.dataSize() - oldColumn.dataSize();
 
                 // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
                 // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
@@ -124,11 +126,11 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
      */
     public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
-        addAllWithSizeDelta(cm, allocator, transformation);
+        addAllWithSizeDelta(cm, allocator, transformation, null);
     }
 
     @Override
-    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public long addAllWithSizeDelta(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
     {
         delete(cm.getDeletionInfo());
         long sizeDelta = 0;
@@ -185,18 +187,13 @@ public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns i
         return map.values().iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return getReverseSortedColumns().iterator();
+        return new ColumnSlice.NavigableMapIterator(map, slices);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        return map.tailMap(start).values().iterator();
-    }
-
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
-    {
-        return map.descendingMap().tailMap(start).values().iterator();
+        return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }
 }

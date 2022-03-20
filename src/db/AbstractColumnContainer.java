@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -24,9 +24,9 @@ import java.util.SortedSet;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.IIterableColumns;
 import org.apache.cassandra.utils.Allocator;
@@ -34,8 +34,6 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public abstract class AbstractColumnContainer implements IColumnContainer, IIterableColumns
 {
-    private static Logger logger = LoggerFactory.getLogger(AbstractColumnContainer.class);
-
     protected final ISortedColumns columns;
 
     protected AbstractColumnContainer(ISortedColumns columns)
@@ -43,30 +41,32 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         this.columns = columns;
     }
 
-    @Deprecated // TODO this is a hack to set initial value outside constructor
-    public void delete(int localtime, long timestamp)
-    {
-        columns.delete(new ISortedColumns.DeletionInfo(timestamp, localtime));
-    }
-
     public void delete(AbstractColumnContainer cc2)
     {
-        columns.delete(cc2.columns.getDeletionInfo());
+        delete(cc2.columns.getDeletionInfo());
+    }
+
+    public void delete(DeletionInfo delInfo)
+    {
+        columns.delete(delInfo);
+    }
+
+    // Contrarily to delete(), this will use the provided info even if those
+    // are older that the current ones. Used for SuperColumn in QueryFilter.
+    // delete() is probably the right method in all other cases.
+    public void setDeletionInfo(DeletionInfo delInfo)
+    {
+        columns.setDeletionInfo(delInfo);
     }
 
     public boolean isMarkedForDelete()
     {
-        return getMarkedForDeleteAt() > Long.MIN_VALUE;
+        return !deletionInfo().isLive();
     }
 
-    public long getMarkedForDeleteAt()
+    public DeletionInfo deletionInfo()
     {
-        return columns.getDeletionInfo().markedForDeleteAt;
-    }
-
-    public int getLocalDeletionTime()
-    {
-        return columns.getDeletionInfo().localDeletionTime;
+        return columns.getDeletionInfo();
     }
 
     public AbstractType<?> getComparator()
@@ -84,9 +84,9 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         columns.maybeResetDeletionTimes(gcBefore);
     }
 
-    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public long addAllWithSizeDelta(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation, SecondaryIndexManager.Updater indexer)
     {
-        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation);
+        return columns.addAllWithSizeDelta(cc.columns, allocator, transformation, indexer);
     }
 
     public void addAll(AbstractColumnContainer cc, Allocator allocator, Function<IColumn, IColumn> transformation)
@@ -164,17 +164,14 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return getColumnCount();
     }
 
-    public int getLiveColumnCount()
+    public boolean hasOnlyTombstones()
     {
-        int count = 0;
-
         for (IColumn column : columns)
         {
             if (column.isLive())
-                count++;
+                return false;
         }
-
-        return count;
+        return true;
     }
 
     public Iterator<IColumn> iterator()
@@ -182,29 +179,25 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         return columns.iterator();
     }
 
-    public Iterator<IColumn> reverseIterator()
+    public Iterator<IColumn> iterator(ColumnSlice[] slices)
     {
-        return columns.reverseIterator();
+        return columns.iterator(slices);
     }
 
-    public Iterator<IColumn> iterator(ByteBuffer start)
+    public Iterator<IColumn> reverseIterator(ColumnSlice[] slices)
     {
-        return columns.iterator(start);
-    }
-
-    public Iterator<IColumn> reverseIterator(ByteBuffer start)
-    {
-        return columns.reverseIterator(start);
+        return columns.reverseIterator(slices);
     }
 
     public boolean hasIrrelevantData(int gcBefore)
     {
-        if (getLocalDeletionTime() < gcBefore)
+        // Do we have gcable deletion infos?
+        if (!deletionInfo().purge(gcBefore).equals(deletionInfo()))
             return true;
 
-        long deletedAt = getMarkedForDeleteAt();
+        // Do we have colums that are either deleted by the container or gcable tombstone?
         for (IColumn column : columns)
-            if (column.mostRecentLiveChangeAt() <= deletedAt || column.hasIrrelevantData(gcBefore))
+            if (deletionInfo().isDeleted(column) || column.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;

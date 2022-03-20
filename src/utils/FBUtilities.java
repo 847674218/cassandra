@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.utils;
 
 import java.io.*;
@@ -23,6 +22,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -33,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
 import org.apache.commons.lang.StringUtils;
@@ -41,7 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.concurrent.CreationTimeAwareFuture;
-import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
@@ -49,7 +51,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
@@ -57,18 +58,17 @@ import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
 
 public class FBUtilities
 {
-    private static Logger logger_ = LoggerFactory.getLogger(FBUtilities.class);
+    private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
     private static ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
 
     public static final BigInteger TWO = new BigInteger("2");
 
-    private static volatile InetAddress localInetAddress_;
-    private static volatile InetAddress broadcastInetAddress_;
+    private static volatile InetAddress localInetAddress;
+    private static volatile InetAddress broadcastInetAddress;
 
     public static int getAvailableProcessors()
     {
@@ -133,10 +133,10 @@ public class FBUtilities
      */
     public static InetAddress getLocalAddress()
     {
-        if (localInetAddress_ == null)
+        if (localInetAddress == null)
             try
             {
-                localInetAddress_ = DatabaseDescriptor.getListenAddress() == null
+                localInetAddress = DatabaseDescriptor.getListenAddress() == null
                                     ? InetAddress.getLocalHost()
                                     : DatabaseDescriptor.getListenAddress();
             }
@@ -144,16 +144,35 @@ public class FBUtilities
             {
                 throw new RuntimeException(e);
             }
-        return localInetAddress_;
+        return localInetAddress;
     }
 
     public static InetAddress getBroadcastAddress()
     {
-        if (broadcastInetAddress_ == null)
-            broadcastInetAddress_ = DatabaseDescriptor.getBroadcastAddress() == null
-                                ? getLocalAddress()
-                                : DatabaseDescriptor.getBroadcastAddress();
-        return broadcastInetAddress_;
+        if (broadcastInetAddress == null)
+            broadcastInetAddress = DatabaseDescriptor.getBroadcastAddress() == null
+                                 ? getLocalAddress()
+                                 : DatabaseDescriptor.getBroadcastAddress();
+        return broadcastInetAddress;
+    }
+
+    public static Collection<InetAddress> getAllLocalAddresses()
+    {
+        Set<InetAddress> localAddresses = new HashSet<InetAddress>();
+        try
+        {
+            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+            if (nets != null)
+            {
+                while (nets.hasMoreElements())
+                    localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
+            }
+        }
+        catch (SocketException e)
+        {
+            throw new AssertionError(e);
+        }
+        return localAddresses;
     }
 
     /**
@@ -184,7 +203,7 @@ public class FBUtilities
             remainder = distance.testBit(0);
             midpoint = distance.shiftRight(1).add(left).mod(max);
         }
-        return new Pair<BigInteger, Boolean>(midpoint, remainder);
+        return Pair.create(midpoint, remainder);
     }
 
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2, int offset1, int offset2, int len1, int len2)
@@ -237,14 +256,7 @@ public class FBUtilities
         return messageDigest.digest();
     }
 
-    public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
-    {
-        if (!new File(tmpFilename).renameTo(new File(filename)))
-        {
-            throw new IOException("rename failed of " + filename);
-        }
-    }
-
+    @Deprecated
     public static void serialize(TSerializer serializer, TBase struct, DataOutput out)
     throws IOException
     {
@@ -264,6 +276,7 @@ public class FBUtilities
         out.write(bytes);
     }
 
+    @Deprecated
     public static void deserialize(TDeserializer deserializer, TBase struct, DataInput in)
     throws IOException
     {
@@ -310,23 +323,6 @@ public class FBUtilities
         }
     }
 
-    public static int encodedUTF8Length(String st)
-    {
-        int strlen = st.length();
-        int utflen = 0;
-        for (int i = 0; i < strlen; i++)
-        {
-            int c = st.charAt(i);
-            if ((c >= 0x0001) && (c <= 0x007F))
-                utflen++;
-            else if (c > 0x07FF)
-                utflen += 3;
-            else
-                utflen += 2;
-        }
-        return utflen;
-    }
-
     public static String resourceToFile(String filename) throws ConfigurationException
     {
         ClassLoader loader = FBUtilities.class.getClassLoader();
@@ -352,7 +348,7 @@ public class FBUtilities
         }
         catch (Exception e)
         {
-            logger_.warn("Unable to load version.properties", e);
+            logger.warn("Unable to load version.properties", e);
             return "debug version";
         }
     }
@@ -438,6 +434,10 @@ public class FBUtilities
             return (Class<T>)Class.forName(classname);
         }
         catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
+        }
+        catch (NoClassDefFoundError e)
         {
             throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
         }
@@ -626,13 +626,8 @@ public class FBUtilities
         DataOutputBuffer buffer = new DataOutputBuffer(size);
         serializer.serialize(object, buffer, version);
         assert buffer.getLength() == size && buffer.getData().length == size
-               : String.format("Final buffer length %s to accomodate data size of %s (predicted %s) for %s",
+               : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
                                buffer.getData().length, buffer.getLength(), size, object);
         return buffer.getData();
-    }
-
-    public static RuntimeException unchecked(Exception e)
-    {
-        return e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
     }
 }
