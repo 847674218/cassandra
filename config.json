@@ -1,9 +1,16 @@
 [
   {
+    "requirementDescription": "F1",
+    "type": "CLASS",
+    "fullyQualifiedName": "SnitchProperties.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
     "requirementDescription": "F36",
     "type": "CLASS",
     "fullyQualifiedName": "PendingRangeCalculatorService.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
@@ -1691,7 +1698,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "PureRandom.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F32",

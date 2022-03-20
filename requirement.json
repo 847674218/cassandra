@@ -2098,5 +2098,45 @@
     {
         "name": "F525",
         "normalProcess": "Calculate pending ranges asynchronously. calculatePendingRanges could be asynchronous."
+    },
+    {
+        "name": "F526",
+        "normalProcess": "Fix saved key cache not loading at startup. Saved key cache is not loaded when opening ColumnFamily."
+    },
+    {
+        "name": "F527",
+        "normalProcess": "Fix ConcurrentModificationException in getBootstrapSource. ConcurrentModificationException in getBootstrapSource."
+    },
+    {
+        "name": "F528",
+        "normalProcess": "Fix sstable maxtimestamp for row deletes and pre-1.1.1 sstables. max client timestamp."
+    },
+    {
+        "name": "F529",
+        "normalProcess": "Fix start key/end token validation for wide row iteration. word count example fails with InvalidRequestException(why:Start key's token sorts after end token)."
+    },
+    {
+        "name": "F530",
+        "normalProcess": "Add ConfigHelper support for Thrift frame and max message sizes. o.a.c.hadoop.ConfigHelper should support setting Thrift frame and max message sizes."
+    },
+    {
+        "name": "F531",
+        "normalProcess": "Fix nodetool repair not fail on node down. Repair command should report error when replica node is dead."
+    },
+    {
+        "name": "F532",
+        "normalProcess": "Always collect tombstone hints. CLONE - Once a host has been hinted to, log messages for it repeat every 10 mins even if no hints are delivered."
+    },
+    {
+        "name": "F533",
+        "normalProcess": "Fix thread growth on node removal. Unbounded (?) thread growth connecting to an removed node."
+    },
+    {
+        "name": "F534",
+        "normalProcess": "Fix error when sourcing file in cqlsh. Error when executing a file contains CQL statement in cqlsh."
+    },
+    {
+        "name": "F535",
+        "normalProcess": "Make Ec2Region's datacenter name configurable. Make Ec2Region's datacenter name configurable."
     }
 ]
