@@ -58,6 +58,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -233,8 +234,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (loadSSTables)
         {
-            Directories.SSTableLister sstables = directories.sstableLister().skipCompacted(true).skipTemporary(true);
-            data.addInitialSSTables(SSTableReader.batchOpen(sstables.list().entrySet(), savedKeys, data, metadata, this.partitioner));
+            Directories.SSTableLister sstableFiles = directories.sstableLister().skipCompacted(true).skipTemporary(true);
+            Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), savedKeys, data, metadata, this.partitioner);
+
+            // Filter non-compacted sstables, remove compacted ones
+            Set<Integer> compactedSSTables = new HashSet<Integer>();
+            for (SSTableReader sstable : sstables)
+                compactedSSTables.addAll(sstable.getAncestors());
+
+            Set<SSTableReader> liveSSTables = new HashSet<SSTableReader>();
+            for (SSTableReader sstable : sstables)
+            {
+                if (compactedSSTables.contains(sstable.descriptor.generation))
+                    sstable.releaseReference(); // this amount to deleting the sstable
+                else
+                    liveSSTables.add(sstable);
+            }
+            data.addInitialSSTables(liveSSTables);
         }
 
         // compaction strategy should be created after the CFS has been prepared
@@ -491,7 +507,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader reader;
             try
             {
-                reader = SSTableReader.open(newDescriptor, entry.getValue(), Collections.<DecoratedKey>emptySet(), data, metadata, partitioner);
+                reader = SSTableReader.open(newDescriptor, entry.getValue(), Collections.<DecoratedKey>emptySet(), metadata, partitioner);
             }
             catch (IOException e)
             {
@@ -903,9 +919,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Calculate expected file size of SSTable after compaction.
      *
-     * If operation type is {@code CLEANUP}, then we calculate expected file size
-     * with checking token range to be eliminated.
-     * Other than that, we just add up all the files' size, which is the worst case file
+     * If operation type is {@code CLEANUP} and we're not dealing with an index sstable,
+     * then we calculate expected file size with checking token range to be eliminated.
+     *
+     * Otherwise, we just add up all the files' size, which is the worst case file
      * size for compaction of all the list of files given.
      *
      * @param sstables SSTables to calculate expected compacted file size
@@ -914,21 +931,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables, OperationType operation)
     {
-        long expectedFileSize = 0;
-        if (operation == OperationType.CLEANUP)
+        if (operation != OperationType.CLEANUP || isIndex())
         {
-            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
-            for (SSTableReader sstable : sstables)
-            {
-                List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
-                for (Pair<Long, Long> position : positions)
-                    expectedFileSize += position.right - position.left;
-            }
+            return SSTable.getTotalBytes(sstables);
         }
-        else
+
+        long expectedFileSize = 0;
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.name);
+        for (SSTableReader sstable : sstables)
         {
-            for (SSTableReader sstable : sstables)
-                expectedFileSize += sstable.onDiskLength();
+            List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
+            for (Pair<Long, Long> position : positions)
+                expectedFileSize += position.right - position.left;
         }
         return expectedFileSize;
     }
@@ -1832,6 +1846,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         maxCompactionThreshold.set(0);
     }
 
+    public void enableAutoCompaction()
+    {
+        minCompactionThreshold.reset();
+        maxCompactionThreshold.reset();
+    }
+
     /*
      JMX getters and setters for the Default<T>s.
        - get/set minCompactionThreshold
@@ -1846,6 +1866,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return compactionStrategy;
     }
 
+    public void setCompactionThresholds(int minThreshold, int maxThreshold)
+    {
+        validateCompactionThresholds(minThreshold, maxThreshold);
+
+        minCompactionThreshold.set(minThreshold);
+        maxCompactionThreshold.set(maxThreshold);
+
+        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
+        if (compactionStrategy != null)
+            CompactionManager.instance.submitBackground(this);
+    }
+
     public int getMinimumCompactionThreshold()
     {
         return minCompactionThreshold.value();
@@ -1853,14 +1885,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMinimumCompactionThreshold(int minCompactionThreshold)
     {
-        if ((minCompactionThreshold > this.maxCompactionThreshold.value()) && this.maxCompactionThreshold.value() != 0)
-            throw new RuntimeException("The min_compaction_threshold cannot be larger than the max.");
-
+        validateCompactionThresholds(minCompactionThreshold, maxCompactionThreshold.value());
         this.minCompactionThreshold.set(minCompactionThreshold);
-
-        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
-        if (compactionStrategy != null)
-            CompactionManager.instance.submitBackground(this);
     }
 
     public int getMaximumCompactionThreshold()
@@ -1870,14 +1896,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setMaximumCompactionThreshold(int maxCompactionThreshold)
     {
-        if (maxCompactionThreshold > 0 && maxCompactionThreshold < this.minCompactionThreshold.value())
-            throw new RuntimeException("The max_compaction_threshold cannot be smaller than the min.");
-
+        validateCompactionThresholds(minCompactionThreshold.value(), maxCompactionThreshold);
         this.maxCompactionThreshold.set(maxCompactionThreshold);
+    }
 
-        // this is called as part of CompactionStrategy constructor; avoid circular dependency by checking for null
-        if (compactionStrategy != null)
-            CompactionManager.instance.submitBackground(this);
+    private void validateCompactionThresholds(int minThreshold, int maxThreshold)
+    {
+        if (minThreshold > maxThreshold && maxThreshold != 0)
+            throw new RuntimeException(String.format("The min_compaction_threshold cannot be larger than the max_compaction_threshold. " +
+                                                     "Min is '%d', Max is '%d'.", minThreshold, maxThreshold));
     }
 
     public boolean isCompactionDisabled()
@@ -1963,9 +1990,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ReplayPosition rp = ReplayPosition.getReplayPosition(sstables);
         SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(rp);
 
-        // get the max timestamp of the precompacted sstables
+        // Get the max timestamp of the precompacted sstables
+        // and adds generation of live ancestors
         for (SSTableReader sstable : sstables)
+        {
             sstableMetadataCollector.updateMaxTimestamp(sstable.getMaxTimestamp());
+            sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
+            for (Integer i : sstable.getAncestors())
+            {
+                if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
+                    sstableMetadataCollector.addAncestor(i);
+            }
+        }
 
         return new SSTableWriter(getTempSSTablePath(location), estimatedRows, metadata, partitioner, sstableMetadataCollector);
     }

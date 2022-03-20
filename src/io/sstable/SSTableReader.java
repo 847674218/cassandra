@@ -140,23 +140,22 @@ public class SSTableReader extends SSTable
 
     public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
     {
-        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, StorageService.getPartitioner(), false);
+        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), metadata, StorageService.getPartitioner(), false);
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), null, metadata, partitioner);
+        return open(descriptor, components, Collections.<DecoratedKey>emptySet(), metadata, partitioner);
     }
 
-    public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, DataTracker tracker, CFMetaData metadata, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(Descriptor descriptor, Set<Component> components, Set<DecoratedKey> savedKeys, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        return open(descriptor, components, savedKeys, tracker, metadata, partitioner, true);
+        return open(descriptor, components, savedKeys, metadata, partitioner, true);
     }
 
     private static SSTableReader open(Descriptor descriptor,
                                       Set<Component> components,
                                       Set<DecoratedKey> savedKeys,
-                                      DataTracker tracker,
                                       CFMetaData metadata,
                                       IPartitioner partitioner,
                                       boolean validate) throws IOException
@@ -191,8 +190,6 @@ public class SSTableReader extends SSTable
                                                   null,
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
-        sstable.setTrackedBy(tracker);
-
         // versions before 'c' encoded keys as utf-16 before hashing to the filter
         if (descriptor.hasStringsInBloomFilter)
         {
@@ -242,7 +239,7 @@ public class SSTableReader extends SSTable
                     SSTableReader sstable;
                     try
                     {
-                        sstable = open(entry.getKey(), entry.getValue(), savedKeys, tracker, metadata, partitioner);
+                        sstable = open(entry.getKey(), entry.getValue(), savedKeys, metadata, partitioner);
                     }
                     catch (IOException ex)
                     {
@@ -320,11 +317,8 @@ public class SSTableReader extends SSTable
 
     public void setTrackedBy(DataTracker tracker)
     {
-        if (tracker != null)
-        {
-            keyCache = CacheService.instance.keyCache;
-            deletingTask.setTracker(tracker);
-        }
+        keyCache = CacheService.instance.keyCache;
+        deletingTask.setTracker(tracker);
     }
 
     void loadBloomFilter() throws IOException
@@ -657,7 +651,9 @@ public class SSTableReader extends SSTable
             return;
 
         // avoid keeping a permanent reference to the original key buffer
-        keyCache.put(new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key)), info);
+        KeyCacheKey cacheKey = new KeyCacheKey(descriptor, ByteBufferUtil.clone(key.key));
+        logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
+        keyCache.put(cacheKey, info);
     }
 
     public Long getCachedPosition(DecoratedKey key, boolean updateStats)
@@ -702,9 +698,13 @@ public class SSTableReader extends SSTable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            Long cachedPosition = getCachedPosition(new KeyCacheKey(descriptor, decoratedKey.key), updateCacheAndStats);
+            KeyCacheKey cacheKey = new KeyCacheKey(descriptor, decoratedKey.key);
+            Long cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
+            {
+                logger.trace("Cache hit for {} -> {}", cacheKey, cachedPosition);
                 return cachedPosition;
+            }
         }
 
         // next, see if the sampled index says it's impossible for the key to be present
@@ -734,12 +734,26 @@ public class SSTableReader extends SSTable
                     int v = op.apply(comparison);
                     if (v == 0)
                     {
-                        if (comparison == 0 && keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
+                        if (comparison == 0)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
                             DecoratedKey decoratedKey = (DecoratedKey)key;
-                            // store exact match for the key
-                            cacheKey(decoratedKey, dataPosition);
+
+                            if (logger.isTraceEnabled())
+                            {
+                                // expensive sanity check!  see CASSANDRA-4687
+                                FileDataInput fdi = dfile.getSegment(dataPosition);
+                                DecoratedKey keyInDisk = SSTableReader.decodeKey(partitioner, descriptor, ByteBufferUtil.readWithShortLength(fdi));
+                                if (!keyInDisk.equals(key))
+                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
+                                fdi.close();
+                            }
+
+                            if (keyCache != null && keyCache.getCapacity() > 0 && updateCacheAndStats)
+                            {
+                                // store exact match for the key
+                                cacheKey(decoratedKey, dataPosition);
+                            }
                         }
                         if (op == Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addTruePositive();
@@ -827,19 +841,7 @@ public class SSTableReader extends SSTable
         if (logger.isDebugEnabled())
             logger.debug("Marking " + getFilename() + " compacted");
 
-        if (isCompacted.getAndSet(true))
-            return false;
-
-        try
-        {
-            if (!new File(descriptor.filenameFor(Component.COMPACTED_MARKER)).createNewFile())
-                throw new IOException("Compaction marker already exists");
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-        return true;
+        return !isCompacted.getAndSet(true);
     }
 
     public void markSuspect()
@@ -1013,6 +1015,11 @@ public class SSTableReader extends SSTable
     public long getMaxTimestamp()
     {
         return sstableMetadata.maxTimestamp;
+    }
+
+    public Set<Integer> getAncestors()
+    {
+        return sstableMetadata.ancestors;
     }
 
     public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException

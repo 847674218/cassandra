@@ -69,6 +69,13 @@ public class SystemTable
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
+    public enum BootstrapState
+    {
+        NEEDS_BOOTSTRAP, // ordered for boolean backward compatibility, false
+        COMPLETED, // true
+        IN_PROGRESS
+    }
+
     private static DecoratedKey decorate(ByteBuffer key)
     {
         return StorageService.getPartitioner().decorateKey(key);
@@ -76,6 +83,7 @@ public class SystemTable
 
     public static void finishStartup() throws IOException
     {
+        DefsTable.fixSchemaNanoTimestamps();
         setupVersion();
         purgeIncompatibleHints();
     }
@@ -352,7 +360,7 @@ public class SystemTable
         return generation;
     }
 
-    public static boolean isBootstrapped()
+    public static BootstrapState getBootstrapState()
     {
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(BOOTSTRAP_KEY),
@@ -360,16 +368,26 @@ public class SystemTable
                                                         BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         if (cf == null)
-            return false;
+            return BootstrapState.NEEDS_BOOTSTRAP;
         IColumn c = cf.getColumn(BOOTSTRAP);
-        return c.value().get(c.value().position()) == 1;
+        return BootstrapState.values()[c.value().get(c.value().position())];
     }
 
-    public static void setBootstrapped(boolean isBootstrapped)
+    public static boolean bootstrapComplete()
+    {
+        return getBootstrapState() == BootstrapState.COMPLETED;
+    }
+
+    public static boolean bootstrapInProgress()
+    {
+        return getBootstrapState() == BootstrapState.IN_PROGRESS;
+    }
+
+    public static void setBootstrapState(BootstrapState state)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(BOOTSTRAP,
-                                ByteBuffer.wrap(new byte[] { (byte) (isBootstrapped ? 1 : 0) }),
+                                ByteBuffer.wrap(new byte[] { (byte) (state.ordinal()) }),
                                 FBUtilities.timestampMicros()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
@@ -434,25 +452,19 @@ public class SystemTable
     {
         ByteBuffer id = null;
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(CURRENT_LOCAL_NODE_ID_KEY),
-                new QueryPath(NODE_ID_CF));
+
+        // Get the last NodeId (since NodeId are timeuuid is thus ordered from the older to the newer one)
+        QueryFilter filter = QueryFilter.getSliceFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
+                                                        new QueryPath(NODE_ID_CF),
+                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                        true,
+                                                        1);
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
-        if (cf != null)
-        {
-            // Even though gc_grace==0 on System table, we can have a race where we get back tombstones (see CASSANDRA-2824)
-            cf = ColumnFamilyStore.removeDeleted(cf, 0);
-            assert cf.getColumnCount() <= 1;
-            if (cf.getColumnCount() > 0)
-                id = cf.iterator().next().name();
-        }
-        if (id != null)
-        {
-            return NodeId.wrap(id);
-        }
+        if (cf != null && cf.getColumnCount() != 0)
+            return NodeId.wrap(cf.iterator().next().name());
         else
-        {
             return null;
-        }
     }
 
     /**
@@ -470,26 +482,17 @@ public class SystemTable
 
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, NODE_ID_CF);
         cf.addColumn(new Column(newNodeId.bytes(), ip, now));
-        ColumnFamily cf2 = cf.cloneMe();
-        if (oldNodeId != null)
-        {
-            // previously used (int)(now /1000) for the localDeletionTime
-            // tests use single digit long values for now, so use actual time.
-            cf2.addColumn(new DeletedColumn(oldNodeId.bytes(), (int)(System.currentTimeMillis() / 1000), now));
-        }
-        RowMutation rmCurrent = new RowMutation(Table.SYSTEM_TABLE, CURRENT_LOCAL_NODE_ID_KEY);
-        RowMutation rmAll = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
-        rmCurrent.add(cf2);
-        rmAll.add(cf);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, ALL_LOCAL_NODE_ID_KEY);
+        rm.add(cf);
         try
         {
-            rmCurrent.apply();
-            rmAll.apply();
+            rm.apply();
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+        forceBlockingFlush(NODE_ID_CF);
     }
 
     public static List<NodeId.NodeIdRecord> getOldLocalNodeIds()
@@ -497,8 +500,7 @@ public class SystemTable
         List<NodeId.NodeIdRecord> l = new ArrayList<NodeId.NodeIdRecord>();
 
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
-                new QueryPath(NODE_ID_CF));
+        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), new QueryPath(NODE_ID_CF));
         ColumnFamily cf = table.getColumnFamilyStore(NODE_ID_CF).getColumnFamily(filter);
 
         NodeId previous = null;

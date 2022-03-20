@@ -31,6 +31,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -63,6 +64,14 @@ public abstract class SecondaryIndex
      * Perform any initialization work
      */
     public abstract void init();
+
+    /**
+     * Reload an existing index following a change to its configuration, 
+     * or that of the indexed column(s). Differs from init() in that we expect
+     * expect new resources (such as CFS for a KEYS index) to be created by
+     * init() but not here
+     */
+    public abstract void reload() throws IOException;
 
     /**
      * Validates the index_options passed in the ColumnDef
@@ -330,4 +339,6 @@ public abstract class SecondaryIndex
 
         return index;
     }
+    
+    public abstract boolean validate(Column column);
 }

@@ -226,7 +226,7 @@ public final class CFMetaData
     public CFMetaData columnAliases(List<ByteBuffer> prop) {columnAliases = prop; updateCfDef(); return this;}
     public CFMetaData valueAlias(ByteBuffer prop) {valueAlias = prop; updateCfDef(); return this;}
     public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; updateCfDef(); return this;}
-    private CFMetaData columnMetadata(ColumnDefinition... cds)
+    public CFMetaData columnMetadata(ColumnDefinition... cds)
     {
         Map<ByteBuffer, ColumnDefinition> map = new HashMap<ByteBuffer, ColumnDefinition>();
         for (ColumnDefinition cd : cds)
@@ -862,6 +862,31 @@ public final class CFMetaData
      */
     public void addDefaultIndexNames() throws ConfigurationException
     {
+        // if this is ColumnFamily update we need to add previously defined index names to the existing columns first
+        Integer cfId = Schema.instance.getId(ksName, cfName);
+        if (cfId != null)
+        {
+            CFMetaData cfm = Schema.instance.getCFMetaData(cfId);
+
+            for (Map.Entry<ByteBuffer, ColumnDefinition> entry : column_metadata.entrySet())
+            {
+                ColumnDefinition newDef = entry.getValue();
+
+                if (!cfm.column_metadata.containsKey(entry.getKey()) || newDef.getIndexType() == null)
+                    continue;
+
+                String oldIndexName = cfm.column_metadata.get(entry.getKey()).getIndexName();
+
+                if (oldIndexName == null)
+                    continue;
+
+                if (newDef.getIndexName() != null && !oldIndexName.equals(newDef.getIndexName()))
+                    throw new ConfigurationException("Can't modify index name: was '" + oldIndexName + "' changed to '" + newDef.getIndexName() + "'.");
+
+                newDef.setIndexName(oldIndexName);
+            }
+        }
+
         Set<String> existingNames = existingIndexNames(null);
         for (ColumnDefinition column : column_metadata.values())
         {
@@ -902,9 +927,9 @@ public final class CFMetaData
     public CFMetaData validate() throws ConfigurationException
     {
         if (!isNameValid(ksName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, ksName));
+            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, ksName));
         if (!isNameValid(cfName))
-            throw new ConfigurationException(String.format("Invalid keyspace name: shouldn't be empty nor more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, cfName));
+            throw new ConfigurationException(String.format("ColumnFamily name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, cfName));
 
         if (cfType == null)
             throw new ConfigurationException(String.format("Invalid column family type for %s", cfName));

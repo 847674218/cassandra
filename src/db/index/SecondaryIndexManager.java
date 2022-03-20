@@ -20,7 +20,14 @@ package org.apache.cassandra.db.index;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ConfigurationException;
@@ -31,11 +38,9 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Manages all the indexes associated with a given CFS
@@ -94,10 +99,11 @@ public class SecondaryIndexManager
             if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name))
                 addIndexedColumn(cdef);
 
-        for (ColumnFamilyStore cfs : getIndexesBackedByCfs())
+        Set<SecondaryIndex> reloadedIndexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        for (SecondaryIndex index : indexesByColumn.values())
         {
-            cfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
-            cfs.reload();
+            if (reloadedIndexes.add(index))
+                index.reload();
         }
     }
 
@@ -205,7 +211,6 @@ public class SecondaryIndexManager
             return null;
 
         assert cdef.getIndexType() != null;
-        logger.info("Creating new index : {}",cdef);
 
         SecondaryIndex index;
         try
@@ -231,6 +236,7 @@ public class SecondaryIndexManager
             {
                 index = currentIndex;
                 index.addColumnDef(cdef);
+                logger.info("Creating new index : {}",cdef);
             }
         }
         else
@@ -268,8 +274,8 @@ public class SecondaryIndexManager
      */
     public void invalidate()
     {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().invalidate();
+        for (SecondaryIndex index : indexesByColumn.values())
+            index.invalidate();
     }
 
     /**
@@ -279,8 +285,8 @@ public class SecondaryIndexManager
      */
     public void flushIndexesBlocking() throws IOException
     {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().forceBlockingFlush();
+        for (SecondaryIndex index : indexesByColumn.values())
+            index.forceBlockingFlush();
     }
 
     /**
@@ -332,10 +338,9 @@ public class SecondaryIndexManager
     {
         ArrayList<ColumnFamilyStore> cfsList = new ArrayList<ColumnFamilyStore>();
 
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        for (SecondaryIndex index: indexesByColumn.values())
         {
-            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
-
+            ColumnFamilyStore cfs = index.getIndexCfs();
             if (cfs != null)
                 cfsList.add(cfs);
         }
@@ -348,19 +353,12 @@ public class SecondaryIndexManager
      */
     public Collection<SecondaryIndex> getIndexesNotBackedByCfs()
     {
-        // we use identity map because per row indexes use same instance
-        // across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-        {
-            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
-
-            if (cfs == null)
-                indexList.put(entry.getValue(), null);
-        }
-
-        return indexList.keySet();
+        // we use identity map because per row indexes use same instance across many columns
+        Set<SecondaryIndex> indexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        for (SecondaryIndex index: indexesByColumn.values())
+            if (index.getIndexCfs() == null)
+                indexes.add(index);
+        return indexes;
     }
 
     /**
@@ -369,12 +367,9 @@ public class SecondaryIndexManager
     public Collection<SecondaryIndex> getIndexes()
     {
         // we use identity map because per row indexes use same instance across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            indexList.put(entry.getValue(), null);
-
-        return indexList.keySet();
+        Set<SecondaryIndex> indexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
+        indexes.addAll(indexesByColumn.values());
+        return indexes;
     }
 
     /**
@@ -383,19 +378,8 @@ public class SecondaryIndexManager
     public long getTotalLiveSize()
     {
         long total = 0;
-
-        // we use identity map because per row indexes use same instance
-        // across many columns
-        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
-
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-        {
-            SecondaryIndex index = entry.getValue();
-
-            if (indexList.put(index, index) == null)
-                total += index.getLiveSize();
-        }
-
+        for (SecondaryIndex index : getIndexes())
+            total += index.getLiveSize();
         return total;
     }
 
@@ -563,10 +547,8 @@ public class SecondaryIndexManager
         List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>(groupByIndexType.size());
 
         //create searcher per type
-        for (Map.Entry<String, Set<ByteBuffer>> entry : groupByIndexType.entrySet())
-        {
-            indexSearchers.add( getIndexForColumn(entry.getValue().iterator().next()).createSecondaryIndexSearcher(entry.getValue()) );
-        }
+        for (Set<ByteBuffer> column : groupByIndexType.values())
+            indexSearchers.add(getIndexForColumn(column.iterator().next()).createSecondaryIndexSearcher(column));
 
         return indexSearchers;
     }
@@ -605,5 +587,11 @@ public class SecondaryIndexManager
     {
         for (ByteBuffer colName : indexes)
             indexesByColumn.get(colName).setIndexRemoved(colName);
+    }
+    
+    public boolean validate(Column column)
+    {
+        SecondaryIndex index = getIndexForColumn(column.name);
+        return index != null ? index.validate(column) : true;
     }
 }

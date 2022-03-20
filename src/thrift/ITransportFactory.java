@@ -1,4 +1,5 @@
-package org.apache.cassandra.auth;
+package org.apache.cassandra.thrift;
+
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,20 +21,14 @@ package org.apache.cassandra.auth;
  *
  */
 
-import java.util.EnumSet;
-import java.util.List;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
-import org.apache.cassandra.config.ConfigurationException;
+import javax.security.auth.login.LoginException;
 
-public class AllowAllAuthority implements IAuthority
+
+public interface ITransportFactory
 {
-    public EnumSet<Permission> authorize(AuthenticatedUser user, List<Object> resource)
-    {
-        return Permission.ALL;
-    }
-
-    public void validateConfiguration() throws ConfigurationException
-    {
-        // pass
-    }
+    TTransport openTransport(TSocket socket) throws LoginException, TTransportException;
 }

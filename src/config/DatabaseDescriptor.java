@@ -30,10 +30,7 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AllowAllAuthenticator;
-import org.apache.cassandra.auth.AllowAllAuthority;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthority;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -41,7 +38,6 @@ import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -76,6 +72,7 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
     private static IAuthority authority = new AllowAllAuthority();
+    private static IAuthorityContainer authorityContainer;
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
 
@@ -142,6 +139,9 @@ public class DatabaseDescriptor
             Yaml yaml = new Yaml(new Loader(constructor));
             conf = (Config)yaml.load(input);
 
+            if (!System.getProperty("os.arch").contains("64"))
+                logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
+
             if (conf.commitlog_sync == null)
             {
                 throw new ConfigurationException("Missing required directive CommitLogSync");
@@ -172,6 +172,9 @@ public class DatabaseDescriptor
                 logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
             }
 
+            if (conf.commitlog_total_space_in_mb == null)
+                conf.commitlog_total_space_in_mb = System.getProperty("os.arch").contains("64") ? 1024 : 32;
+
             /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)
             {
@@ -190,9 +193,6 @@ public class DatabaseDescriptor
                 indexAccessMode = conf.disk_access_mode;
                 logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
             }
-            // We could enable cleaner for index only mmap but it probably doesn't matter much
-            if (conf.disk_access_mode == Config.DiskAccessMode.mmap)
-                MmappedSegmentedFile.initCleaner();
 
 	        logger.debug("page_cache_hinting is " + conf.populate_io_cache_on_flush);
 
@@ -203,6 +203,8 @@ public class DatabaseDescriptor
                 authority = FBUtilities.<IAuthority>construct(conf.authority, "authority");
             authenticator.validateConfiguration();
             authority.validateConfiguration();
+
+            authorityContainer = new IAuthorityContainer(authority);
 
             /* Hashing strategy */
             if (conf.partitioner == null)
@@ -450,6 +452,9 @@ public class DatabaseDescriptor
 
             Schema.instance.addSystemTable(systemMeta);
 
+            // setup schema required for authorization
+            authorityContainer.setup();
+
             /* Load the seeds for node contact points */
             if (conf.seed_provider == null)
             {
@@ -571,6 +576,11 @@ public class DatabaseDescriptor
     public static IAuthority getAuthority()
     {
         return authority;
+    }
+
+    public static IAuthorityContainer getAuthorityContainer()
+    {
+        return authorityContainer;
     }
 
     public static int getThriftMaxMessageLength()

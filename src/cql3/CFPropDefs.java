@@ -18,23 +18,27 @@
  */
 package org.apache.cassandra.cql3;
 
-import com.google.common.collect.Sets;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.compress.SnappyCompressor;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class CFPropDefs
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CFPropDefs extends PropertyDefinitions
 {
     private static Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
 
@@ -89,7 +93,7 @@ public class CFPropDefs
         allowedKeywords.addAll(obsoleteKeywords);
     }
 
-    public final Map<String, String> properties = new HashMap<String, String>();
+    private Class<? extends AbstractCompactionStrategy> compactionStrategyClass = null;
     public final Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
     public final Map<String, String> compressionParameters = new HashMap<String, String>()
     {{
@@ -101,7 +105,7 @@ public class CFPropDefs
     {
         try
         {
-            String className = comparators.get(type);
+            String className = comparators.get(type.toLowerCase());
             if (className == null)
                 className = type;
             return TypeParser.parse(className);
@@ -114,22 +118,19 @@ public class CFPropDefs
         }
     }
 
-    /* If not comparator/validator is not specified, default to text (BytesType is the wrong default for CQL
-     * since it uses hex terms).  If the value specified is not found in the comparators map, assume the user
-     * knows what they are doing (a custom comparator/validator for example), and pass it on as-is.
-     */
-
-    public void validate() throws ConfigurationException
+    public void validate() throws ConfigurationException, InvalidRequestException
     {
-        // Catch the case where someone passed a kwarg that is not recognized.
-        for (String bogus : Sets.difference(properties.keySet(), allowedKeywords))
-            throw new ConfigurationException(bogus + " is not a valid keyword argument for CREATE TABLE");
-        for (String obsolete : Sets.intersection(properties.keySet(), obsoleteKeywords))
-            logger.warn("Ignoring obsolete property {}", obsolete);
+        validate(keywords, obsoleteKeywords);
+
+        if (properties.containsKey(KW_COMPACTION_STRATEGY_CLASS))
+        {
+            compactionStrategyClass = CFMetaData.createCompactionStrategy(properties.get(KW_COMPACTION_STRATEGY_CLASS));
+            compactionStrategyOptions.remove(KW_COMPACTION_STRATEGY_CLASS);
+        }
     }
 
-    /** Map a keyword to the corresponding value */
-    public void addProperty(String name, String value)
+    @Override
+    public void addProperty(String name, String value) throws InvalidRequestException
     {
         String[] composite = name.split(":");
         if (composite.length > 1)
@@ -145,24 +146,13 @@ public class CFPropDefs
                 return;
             }
         }
-        properties.put(name, value);
+        super.addProperty(name, value);
     }
 
-    public void addAll(Map<String, String> propertyMap)
-    {
-        for (Map.Entry<String, String> entry : propertyMap.entrySet())
-            addProperty(entry.getKey(), entry.getValue());
-    }
-
-    public Boolean hasProperty(String name)
-    {
-        return properties.containsKey(name);
-    }
-
-    public void applyToCFMetadata(CFMetaData cfm) throws ConfigurationException
+    public void applyToCFMetadata(CFMetaData cfm) throws ConfigurationException, InvalidRequestException
     {
         if (hasProperty(KW_COMMENT))
-            cfm.comment(get(KW_COMMENT));
+            cfm.comment(getString(KW_COMMENT, ""));
 
         cfm.readRepairChance(getDouble(KW_READREPAIRCHANCE, cfm.getReadRepairChance()));
         cfm.dcLocalReadRepairChance(getDouble(KW_DCLOCALREADREPAIRCHANCE, cfm.getDcLocalReadRepair()));
@@ -173,78 +163,13 @@ public class CFPropDefs
         cfm.caching(CFMetaData.Caching.fromString(getString(KW_CACHING, cfm.getCaching().toString())));
         cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
 
-        if (!compactionStrategyOptions.isEmpty())
+        if (compactionStrategyClass != null)
+        {
+            cfm.compactionStrategyClass(compactionStrategyClass);
             cfm.compactionStrategyOptions(new HashMap<String, String>(compactionStrategyOptions));
-
-        if (!compressionParameters.isEmpty())
-            cfm.compressionParameters(CompressionParameters.create(compressionParameters));
-    }
-
-    public String get(String name)
-    {
-        return properties.get(name);
-    }
-
-    public String getString(String key, String defaultValue)
-    {
-        String value = properties.get(key);
-        return value != null ? value : defaultValue;
-    }
-
-    // Return a property value, typed as a Boolean
-    public Boolean getBoolean(String key, Boolean defaultValue)
-    {
-        String value = properties.get(key);
-        return (value == null) ? defaultValue : value.toLowerCase().matches("(1|true|yes)");
-    }
-
-    // Return a property value, typed as a Double
-    public Double getDouble(String key, Double defaultValue) throws ConfigurationException
-    {
-        Double result;
-        String value = properties.get(key);
-
-        if (value == null)
-            result = defaultValue;
-        else
-        {
-            try
-            {
-                result = Double.parseDouble(value);
-            }
-            catch (NumberFormatException e)
-            {
-                throw new ConfigurationException(String.format("%s not valid for \"%s\"", value, key));
-            }
         }
-        return result;
-    }
 
-    // Return a property value, typed as an Integer
-    public Integer getInt(String key, Integer defaultValue) throws ConfigurationException
-    {
-        String value = properties.get(key);
-        return toInt(key, value, defaultValue);
-    }
-
-    public static Integer toInt(String key, String value, Integer defaultValue) throws ConfigurationException
-    {
-        Integer result;
-
-        if (value == null)
-            result = defaultValue;
-        else
-        {
-            try
-            {
-                result = Integer.parseInt(value);
-            }
-            catch (NumberFormatException e)
-            {
-                throw new ConfigurationException(String.format("%s not valid for \"%s\"", value, key));
-            }
-        }
-        return result;
+        cfm.compressionParameters(CompressionParameters.create(compressionParameters));
     }
 
     @Override

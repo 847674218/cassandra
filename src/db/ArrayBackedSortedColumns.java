@@ -201,8 +201,9 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    protected void addAllColumns(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
+    public void addAll(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
+        delete(cm.getDeletionInfo());
         if (cm.isEmpty())
             return;
 
@@ -295,7 +296,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
         return new ColumnNamesSet();
     }
 
-    @Override
     public Iterator<IColumn> iterator()
     {
         return reversed ? reverseInternalIterator(size()) : columns.iterator();

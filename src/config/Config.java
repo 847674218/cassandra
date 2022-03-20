@@ -34,7 +34,7 @@ public class Config
 
     public Boolean auto_bootstrap = true;
     public Boolean hinted_handoff_enabled = true;
-    public Integer max_hint_window_in_ms = Integer.MAX_VALUE;
+    public Integer max_hint_window_in_ms = 3600 * 1000; // one hour
 
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -82,7 +82,7 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
-    public Integer in_memory_compaction_limit_in_mb = 256;
+    public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors = Runtime.getRuntime().availableProcessors();
     public Integer compaction_throughput_mb_per_sec = 16;
     public Boolean multithreaded_compaction = false;
@@ -97,11 +97,11 @@ public class Config
 
     // Commit Log
     public String commitlog_directory;
-    public Integer commitlog_total_space_in_mb = 4096;
+    public Integer commitlog_total_space_in_mb;
     public CommitLogSync commitlog_sync;
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
-    public int commitlog_segment_size_in_mb = 128;
+    public int commitlog_segment_size_in_mb = 32;
 
     public String endpoint_snitch;
     public Boolean dynamic_snitch = true;
