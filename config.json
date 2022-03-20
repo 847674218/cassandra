@@ -1,9 +1,16 @@
 [
   {
+    "requirementDescription": "F22",
+    "type": "CLASS",
+    "fullyQualifiedName": "RetriedSliceFromReadCommand.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
     "requirementDescription": "F47",
     "type": "CLASS",
     "fullyQualifiedName": "IMergeIterator.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {

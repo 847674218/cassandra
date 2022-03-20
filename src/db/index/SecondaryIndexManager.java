@@ -319,7 +319,7 @@ public class SecondaryIndexManager
 
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
         {
-            ColumnFamilyStore cfs = entry.getValue().getUnderlyingCfs();
+            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
             
             if (cfs != null)
                 cfsList.add(cfs);        
@@ -379,9 +379,9 @@ public class SecondaryIndexManager
                 {
                     if (appliedRowLevelIndexes == null)
                         appliedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
-                    else
-                        if (appliedRowLevelIndexes.add(index.getClass()))
-                            ((PerRowSecondaryIndex)index).applyIndexUpdates(rowKey, cf, mutatedIndexedColumns, oldIndexedColumns);
+                    
+                    if (appliedRowLevelIndexes.add(index.getClass()))
+                        ((PerRowSecondaryIndex)index).applyIndexUpdates(rowKey, cf, mutatedIndexedColumns, oldIndexedColumns);
                 }
                 else
                 {
@@ -411,9 +411,9 @@ public class SecondaryIndexManager
             {
                 if (appliedRowLevelIndexes == null)
                     appliedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
-                else
-                    if (appliedRowLevelIndexes.add(index.getClass()))
-                        ((PerRowSecondaryIndex)index).applyIndexUpdates(rowKey, cf, mutatedIndexedColumns, oldIndexedColumns);
+                
+                if (appliedRowLevelIndexes.add(index.getClass()))
+                    ((PerRowSecondaryIndex)index).applyIndexUpdates(rowKey, cf, mutatedIndexedColumns, oldIndexedColumns);
             }
             else
             {
@@ -448,9 +448,9 @@ public class SecondaryIndexManager
             {
                 if (cleanedRowLevelIndexes == null)
                     cleanedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
-                else
-                    if (cleanedRowLevelIndexes.add(index.getClass()))
-                        ((PerRowSecondaryIndex)index).deleteFromIndex(key, indexedColumnsInRow);             
+                
+                if (cleanedRowLevelIndexes.add(index.getClass()))
+                    ((PerRowSecondaryIndex)index).deleteFromIndex(key, indexedColumnsInRow);             
             }
             else
             {
