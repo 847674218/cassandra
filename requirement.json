@@ -1898,5 +1898,113 @@
     {
         "name": "F475",
         "normalProcess": "Add binary protocol events for schema changes. Binary protocol: inform clients of schema changes."
+    },
+    {
+        "name": "F476",
+        "normalProcess": "cqlsh: improve COPY FROM performance. improve cqlsh COPY FROM performance."
+    },
+    {
+        "name": "F477",
+        "normalProcess": "Add basic authentication support for Pig CassandraStorage. Implement authentication in Pig loadFunc."
+    },
+    {
+        "name": "F478",
+        "normalProcess": "Fix CQL2 ALTER TABLE compaction_strategy_class altering. in cqlsh, alter table with compaction_strategy_class does nothing."
+    },
+    {
+        "name": "F479",
+        "normalProcess": "Reset getRangeSlice filter after finishing a row for get_paged_slice. StorageProxy.getRangeSlice sometimes returns incorrect number of columns."
+    },
+    {
+        "name": "F480",
+        "normalProcess": "Expunge row cache post-truncate. Truncate doesn't clear row cache."
+    },
+    {
+        "name": "F481",
+        "normalProcess": "Remove IAuthority2. Revert IAuthority2 interface."
+    },
+    {
+        "name": "F482",
+        "normalProcess": "Add get[Row|Key]CacheEntries to CacheServiceMBean. Include number of entries in CachedService."
+    },
+    {
+        "name": "F483",
+        "normalProcess": "Fix get_paged_slice to wrap to next row correctly. Broken get_paged_slice."
+    },
+    {
+        "name": "F484",
+        "normalProcess": "Fix indexing empty column values. AssertionError: keys must not be empty."
+    },
+    {
+        "name": "F485",
+        "normalProcess": "Allow JdbcDate to compose null Date objects. JdbcDate.compose is not null safe."
+    },
+    {
+        "name": "F486",
+        "normalProcess": "Fix possible stackoverflow when compacting 1000s of sstables. StackOverflowError in CompactionExecutor thread."
+    },
+    {
+        "name": "F487",
+        "normalProcess": "Fix wrong leveled compaction progress calculation. Compaction progress counts more than 100%."
+    },
+    {
+        "name": "F488",
+        "normalProcess": "Add a close() method to CRAR to prevent leaking file descriptors. Add a close() method to CRAR to prevent leaking file descriptors."
+    },
+    {
+        "name": "F489",
+        "normalProcess": "Fix potential infinite loop in get_count. get_count with 'count' param between 1024 and ~actual column count fails."
+    },
+    {
+        "name": "F490",
+        "normalProcess": "Fix compositeType.{get/from }String methods. DateType in Column MetaData causes server crash."
+    },
+    {
+        "name": "F491",
+        "normalProcess": "(CQL) fix CREATE COLUMNFAMILY permissions check. CQL2 CREATE COLUMNFAMILY checks wrong permission."
+    },
+    {
+        "name": "F492",
+        "normalProcess": "Fix DynamicCompositeType same type comparison. Duplicate column names with DynamicCompositeType."
+    },
+    {
+        "name": "F493",
+        "normalProcess": "Fix duplicate SSTable reference when stream session failed. Failed streaming may cause duplicate SSTable reference."
+    },
+    {
+        "name": "F494",
+        "normalProcess": "Allow static CF definition with compact storage. CQL3 doesn't allow static CF definition with compact storage in C* 1.1."
+    },
+    {
+        "name": "F495",
+        "normalProcess": "Fix endless loop/compaction of schema_* CFs due to broken timestamps. Endless loop flushing+compacting system/schema_keyspaces and system/schema_columnfamilies."
+    },
+    {
+        "name": "F496",
+        "normalProcess": "Fix 'wrong class type' assertion in CounterColumn. AssertionError: Wrong class type at CounterColumn.diff()."
+    },
+    {
+        "name": "F497",
+        "normalProcess": "Fix cqlsh timestamp formatting of timezone info. cqlsh timestamp formatting is broken - displays wrong timezone info (at least on Ubuntu)."
+    },
+    {
+        "name": "F498",
+        "normalProcess": "Fix assertion failure with leveled compaction. assertion failure in leveled compaction test."
+    },
+    {
+        "name": "F499",
+        "normalProcess": "Check for null end_token in get_range_slice. Wrong assumption for KeyRange about range.end_token in get_range_slices()."
+    },
+    {
+        "name": "F500",
+        "normalProcess": "Remove all remnants of removed nodes. remnants of removed nodes remain after removal."
+    },
+    {
+        "name": "F501",
+        "normalProcess": "Add aut-reloading of the log4j file in debian package. Debian packaging doesn't do auto-reloading of log4j properties file."
+    },
+    {
+        "name": "F502",
+        "normalProcess": "Fix estimated row cache entry size. Estimated Row Cache Entry size incorrect (always 24?)."
     }
 ]
