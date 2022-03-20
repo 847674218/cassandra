@@ -254,5 +254,69 @@
     {
         "name": "F64",
         "normalProcess": "Fix deadlock in commit log during flush. inherent deadlock situation in commitLog flush."
+    },
+    {
+        "name": "65",
+        "normalProcess": "Log a meaningful warning when a node receives a message for a repair session that doesn't exist anymore. AssertionError when repairing a node."
+    },
+    {
+        "name": "66",
+        "normalProcess": "Test for NUMA policy support as well as numactl presence. Don't fail when numactl is installed, but NUMA policies are not supported."
+    },
+    {
+        "name": "67",
+        "normalProcess": "Fix FD leak when internode encryption is enabled. Enabling SSL on a fairly light cluster leaks Open files."
+    },
+    {
+        "name": "68",
+        "normalProcess": "MergeIterator.get assert that it don't get an empty list of sources.Remove incorrect assertion in mergeIterator. MergeIterator assertion on sources != empty can be thrown."
+    },
+    {
+        "name": "69",
+        "normalProcess": "FBUtilities.hexToBytes(String) to throw NumberFormatException when string contains non-hex characters. CQL does not throw an error when invalid hex is supplied."
+    },
+    {
+        "name": "70",
+        "normalProcess": "Keep SimpleSnitch proximity ordering unchanged from what the Strategy generates, as intended. Simple Snitch.compareEndpoints doesn't respect the intent of the snitch. SimpleSnitch is supposed to not sort the input addresses, thus respecting the order of the partitioner."
+    },
+    {
+        "name": "71",
+        "normalProcess": "Remove Scrub from compactionstats when finished. Sstable scrub status persists in compactionstats after scrub is complete. When scrubbing the sstables on a node, the 'Scrub' info persists in the 'compactionstats' nodetool utility, even after the scrub is complete."
+    },
+    {
+        "name": "72",
+        "normalProcess": "Fix counter entry in jdbc TypesMap. Cannot read counter value from jdbc cql."
+    },
+    {
+        "name": "73",
+        "normalProcess": "Fix full queue scenario for ParallelCompactionIterator. Error during multi-threaded compaction. I'm running 0.8.6 plus the multi-threaded compaction patch in issue 2901. I'm getting an error compacting"
+    },
+    {
+        "name": "74",
+        "normalProcess": "Fix bootstrap process. Bootstrap is broken in 1.0.0-rc1. The condition to bootstrap is that there are non-system tables instead, a not is missing, and the setToken() was wrongly push up into the I'm not bootstrapping block so a boostrapping node was left in the joining state."
+    },
+    {
+        "name": "75",
+        "normalProcess": "Fix bootstrap process. Bootstrap is broken in 1.0.0-rc1.  the condition to bootstrap is that there are non-system tables instead, a not is missing, and the setToken() was wrongly push up into the I'm not bootstrapping block so a boostrapping node was left in the joining state."
+    },
+    {
+        "name": "76",
+        "normalProcess": "CLI documentation change for ColumnFamily `compression_options`. CLI does not support removing compression options from a ColumnFamily."
+    },
+    {
+        "name": "77",
+        "normalProcess": "Ignore any CF ids sent by client for adding CF/KS. CfDef can default to an invalid id and fail during system_add_column_family."
+    },
+    {
+        "name": "78",
+        "normalProcess": "Remove obsolete hints on first startup. 1.0 needs to clean out old-style hints."
+    },
+    {
+        "name": "79",
+        "normalProcess": "Use correct ISortedColumns for time-optimized reads. assert err on ArrayBackedSortedColumns.addColumn. every thing is flushed to the sstables, but not in the same sstables, and the columns are in some what 'random' form."
+    },
+    {
+        "name": "80",
+        "normalProcess": "Evict gossip state immediately when a token is taken over by a new IP. Replace token leaves the old node state in tact causing problems in cli. in the replace token patch we dont evict the node from the Gossip which will leave the node lingering around and causes issues in cli (UNReachable nodes) As a part of the replace token if the token is replaced with another token we should remove the old nodes Gossip states."
     }
 ]
