@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -145,6 +144,15 @@ public class CounterMutation implements IMutation
             rm.add(cf);
         }
         rm.apply();
+    }
+
+    public void addAll(IMutation m)
+    {
+        if (!(m instanceof CounterMutation))
+            throw new IllegalArgumentException();
+
+        CounterMutation cm = (CounterMutation)m;
+        rowMutation.addAll(cm.rowMutation);
     }
 
     @Override

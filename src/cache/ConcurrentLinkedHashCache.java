@@ -1,6 +1,6 @@
 package org.apache.cassandra.cache;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,24 +8,23 @@ package org.apache.cassandra.cache;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
-
-import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.Weigher;
+
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 /** Wrapper so CLHM can implement ICache interface.
@@ -40,23 +39,49 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         this.map = map;
     }
 
-    public static <K, V> ConcurrentLinkedHashCache<K, V> create(int capacity, String tableName, String cfname)
+    /**
+     * Initialize a cache with weigher = Weighers.singleton() and initial capacity 0
+     *
+     * @param capacity cache weighted capacity
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @return initialized cache
+     */
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long capacity)
+    {
+        return create(capacity, Weighers.<V>singleton());
+    }
+
+    /**
+     * Initialize a cache with initial capacity set to 0
+     *
+     * @param weightedCapacity cache weighted capacity
+     * @param weigher The weigher to use
+     *
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @return initialized cache
+     */
+    public static <K, V> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity, Weigher<V> weigher)
     {
         ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap.Builder<K, V>()
-                                            .weigher(Weighers.<V>singleton())
-                                            .initialCapacity(capacity)
-                                            .maximumWeightedCapacity(capacity)
+                                            .weigher(weigher)
+                                            .maximumWeightedCapacity(weightedCapacity)
                                             .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                                             .build();
+
         return new ConcurrentLinkedHashCache<K, V>(map);
     }
 
-    public int capacity()
+    public long capacity()
     {
         return map.capacity();
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
     }
@@ -69,6 +94,11 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     public int size()
     {
         return map.size();
+    }
+
+    public long weightedSize()
+    {
+        return map.weightedSize();
     }
 
     public void clear()
@@ -86,6 +116,16 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
         map.put(key, value);
     }
 
+    public boolean putIfAbsent(K key, V value)
+    {
+        return map.putIfAbsent(key, value) == null;
+    }
+
+    public boolean replace(K key, V old, V value)
+    {
+        return map.replace(key, old, value);
+    }
+
     public void remove(K key)
     {
         map.remove(key);
@@ -99,6 +139,11 @@ public class ConcurrentLinkedHashCache<K, V> implements ICache<K, V>
     public Set<K> hotKeySet(int n)
     {
         return map.descendingKeySetWithLimit(n);
+    }
+
+    public boolean containsKey(K key)
+    {
+        return map.containsKey(key);
     }
 
     public boolean isPutCopying()

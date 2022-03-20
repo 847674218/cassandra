@@ -23,6 +23,7 @@ import java.nio.channels.ClosedChannelException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.CLibrary;
 
 public class SequentialWriter extends OutputStream
@@ -39,6 +40,9 @@ public class SequentialWriter extends OutputStream
     protected byte[] buffer;
     private final boolean skipIOCache;
     private final int fd;
+    private final int directoryFD;
+    // directory should be synced only after first file sync, in other words, only once per file
+    private boolean directorySynced = false;
 
     protected long current = 0, bufferOffset;
     protected int validBufferBytes;
@@ -47,6 +51,12 @@ public class SequentialWriter extends OutputStream
 
     // used if skip I/O cache was enabled
     private long ioCacheStartOffset = 0, bytesSinceCacheFlush = 0;
+
+    // whether to do trickling fsync() to avoid sudden bursts of dirty buffer flushing by kernel causing read
+    // latency spikes
+    private boolean trickleFsync;
+    private int trickleFsyncByteInterval;
+    private int bytesSinceTrickleFsync = 0;
 
     public final DataOutputStream stream;
     private MessageDigest digest;
@@ -59,7 +69,10 @@ public class SequentialWriter extends OutputStream
 
         buffer = new byte[bufferSize];
         this.skipIOCache = skipIOCache;
+        this.trickleFsync = DatabaseDescriptor.getTrickleFsync();
+        this.trickleFsyncByteInterval = DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024;
         fd = CLibrary.getfd(out.getFD());
+        directoryFD = CLibrary.tryOpenDirectory(file.getParent());
         stream = new DataOutputStream(this);
     }
 
@@ -141,12 +154,23 @@ public class SequentialWriter extends OutputStream
         syncInternal();
     }
 
+    protected void syncDataOnlyInternal() throws IOException
+    {
+        out.getFD().sync();
+    }
+
     protected void syncInternal() throws IOException
     {
         if (syncNeeded)
         {
             flushInternal();
-            out.getFD().sync();
+            syncDataOnlyInternal();
+
+            if (!directorySynced)
+            {
+                CLibrary.trySync(directoryFD);
+                directorySynced = true;
+            }
 
             syncNeeded = false;
         }
@@ -171,6 +195,16 @@ public class SequentialWriter extends OutputStream
         {
             flushData();
 
+            if (trickleFsync)
+            {
+                bytesSinceTrickleFsync += validBufferBytes;
+                if (bytesSinceTrickleFsync >= trickleFsyncByteInterval)
+                {
+                    syncDataOnlyInternal();
+                    bytesSinceTrickleFsync = 0;
+                }
+            }
+
             if (skipIOCache)
             {
                 // we don't know when the data reaches disk since we aren't
@@ -180,7 +214,7 @@ public class SequentialWriter extends OutputStream
                 // periodically we update this starting offset
                 bytesSinceCacheFlush += validBufferBytes;
 
-                if (bytesSinceCacheFlush >= RandomAccessReader.MAX_BYTES_IN_PAGE_CACHE)
+                if (bytesSinceCacheFlush >= RandomAccessReader.CACHE_FLUSH_INTERVAL_IN_BYTES)
                 {
                     CLibrary.trySkipCache(this.fd, ioCacheStartOffset, 0);
                     ioCacheStartOffset = bufferOffset;
@@ -288,6 +322,7 @@ public class SequentialWriter extends OutputStream
             CLibrary.trySkipCache(fd, 0, 0);
 
         out.close();
+        CLibrary.tryCloseFD(directoryFD);
     }
 
     /**

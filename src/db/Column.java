@@ -21,14 +21,15 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -106,7 +107,7 @@ public class Column implements IColumn
 
     public boolean isMarkedForDelete()
     {
-        return false;
+        return (int) (System.currentTimeMillis() / 1000) >= getLocalDeletionTime();
     }
 
     public long getMarkedForDeleteAt()
@@ -190,7 +191,7 @@ public class Column implements IColumn
 
     public int getLocalDeletionTime()
     {
-        throw new IllegalStateException("column is not marked for delete");
+        return Integer.MAX_VALUE;
     }
 
     public IColumn reconcile(IColumn column)
@@ -243,13 +244,13 @@ public class Column implements IColumn
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
-    
+
     public IColumn localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new Column(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
     }
 
-    public String getString(AbstractType comparator)
+    public String getString(AbstractType<?> comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));
@@ -269,21 +270,64 @@ public class Column implements IColumn
 
     protected void validateName(CFMetaData metadata) throws MarshalException
     {
-        AbstractType nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
+        AbstractType<?> nameValidator = metadata.cfType == ColumnFamilyType.Super ? metadata.subcolumnComparator : metadata.comparator;
         nameValidator.validate(name());
     }
 
     public void validateFields(CFMetaData metadata) throws MarshalException
     {
         validateName(metadata);
-        AbstractType valueValidator = metadata.getValueValidator(name());
+        AbstractType<?> valueValidator = metadata.getValueValidator(name());
         if (valueValidator != null)
             valueValidator.validate(value());
     }
 
     public boolean hasExpiredTombstones(int gcBefore)
     {
-        return isMarkedForDelete() && getLocalDeletionTime() < gcBefore;
+        return getLocalDeletionTime() < gcBefore;
+    }
+
+    public static Column create(String value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), UTF8Type.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(int value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), Int32Type.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(boolean value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), BooleanType.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(double value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), DoubleType.instance.decompose(value), timestamp);
+    }
+
+    public static Column create(ByteBuffer value, long timestamp, String... names)
+    {
+        return new Column(decomposeName(names), value, timestamp);
+    }
+
+    static ByteBuffer decomposeName(String... names)
+    {
+        assert names.length > 0;
+
+        if (names.length == 1)
+            return UTF8Type.instance.decompose(names[0]);
+
+        // not super performant.  at this time, only infrequently called schema code uses this.
+        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(names.length);
+        for (int i = 0; i < names.length; i++)
+            types.add(UTF8Type.instance);
+
+        CompositeType.Builder builder = new CompositeType.Builder(CompositeType.getInstance(types));
+        for (String name : names)
+            builder.add(UTF8Type.instance.decompose(name));
+        return builder.build();
     }
 }
 

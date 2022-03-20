@@ -42,7 +42,7 @@ public interface IFilter
      * returns an iterator that returns columns from the given memtable
      * matching the Filter criteria in sorted order.
      */
-    public abstract IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key, AbstractType comparator);
+    public abstract IColumnIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey<?> key);
 
     /**
      * Get an iterator that returns columns from the given SSTable using the opened file
@@ -72,7 +72,8 @@ public interface IFilter
      */
     public abstract SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
 
-    public Comparator<IColumn> getColumnComparator(AbstractType comparator);
+    public Comparator<IColumn> getColumnComparator(AbstractType<?> comparator);
 
     public boolean isReversed();
+    public void updateColumnsLimit(int newLimit);
 }

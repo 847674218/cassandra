@@ -169,6 +169,21 @@ public class RowMutation implements IMutation, MessageProducer
             throw new IllegalArgumentException("ColumnFamily " + columnFamily + " already has modifications in this mutation: " + prev);
     }
 
+    /**
+     * @return the ColumnFamily in this RowMutation corresponding to @param cfName, creating an empty one if necessary.
+     */
+    public ColumnFamily addOrGet(String cfName)
+    {
+        CFMetaData cfm = Schema.instance.getCFMetaData(table_, cfName);
+        ColumnFamily cf = modifications_.get(cfm.cfId);
+        if (cf == null)
+        {
+            cf = ColumnFamily.create(cfm);
+            modifications_.put(cfm.cfId, cf);
+        }
+        return cf;
+    }
+
     public boolean isEmpty()
     {
         return modifications_.isEmpty();
@@ -186,6 +201,10 @@ public class RowMutation implements IMutation, MessageProducer
      * param @ value - value associated with the column
      * param @ timestamp - timestamp associated with this data.
      * param @ timeToLive - ttl for the column, 0 for standard (non expiring) columns
+     *
+     * @Deprecated this tends to be low-performance; we're doing two hash lookups,
+     * one of which instantiates a Pair, and callers tend to instantiate new QP objects
+     * for each call as well.  Use the add(ColumnFamily) overload instead.
      */
     public void add(QueryPath path, ByteBuffer value, long timestamp, int timeToLive)
     {
@@ -245,6 +264,25 @@ public class RowMutation implements IMutation, MessageProducer
         }
     }
 
+    public void addAll(IMutation m)
+    {
+        if (!(m instanceof RowMutation))
+            throw new IllegalArgumentException();
+
+        RowMutation rm = (RowMutation)m;
+        if (!table_.equals(rm.table_) || !key_.equals(rm.key_))
+            throw new IllegalArgumentException();
+
+        for (Map.Entry<Integer, ColumnFamily> entry : rm.modifications_.entrySet())
+        {
+            // It's slighty faster to assume the key wasn't present and fix if
+            // not in the case where it wasn't there indeed.
+            ColumnFamily cf = modifications_.put(entry.getKey(), entry.getValue());
+            if (cf != null)
+                entry.getValue().resolve(cf);
+        }
+    }
+
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
@@ -295,7 +333,7 @@ public class RowMutation implements IMutation, MessageProducer
         buff.append(", modifications=[");
         if (shallow)
         {
-            List<String> cfnames = new ArrayList<String>();
+            List<String> cfnames = new ArrayList<String>(modifications_.size());
             for (Integer cfid : modifications_.keySet())
             {
                 CFMetaData cfm = Schema.instance.getCFMetaData(cfid);
@@ -366,7 +404,7 @@ public class RowMutation implements IMutation, MessageProducer
         }
 
         // We need to deserialize at least once for counters to cleanup the delta
-        if (!hasCounters)
+        if (!hasCounters && version == MessagingService.version_)
             rm.preserializedBuffers.put(version, raw);
         return rm;
     }
@@ -398,7 +436,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, ThreadSafeSortedColumns.factory());
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, TreeMapBackedSortedColumns.factory());
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);

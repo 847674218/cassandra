@@ -26,10 +26,16 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -43,10 +49,15 @@ public class SSTableLoader
     private final Client client;
     private final OutputHandler outputHandler;
 
+    static
+    {
+        Config.setLoadYaml(false);
+    }
+
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
         this.directory = directory;
-        this.keyspace = directory.getName();
+        this.keyspace = directory.getParentFile().getName();
         this.client = client;
         this.outputHandler = outputHandler;
     }
@@ -84,7 +95,7 @@ public class SSTableLoader
 
                 try
                 {
-                    sstables.add(SSTableReader.open(desc, components, null, StorageService.getPartitioner()));
+                    sstables.add(SSTableReader.open(desc, components, null, client.getPartitioner()));
                 }
                 catch (IOException e)
                 {
@@ -112,12 +123,12 @@ public class SSTableLoader
             return new LoaderFuture(0);
         }
 
-        Map<InetAddress, Collection<Range>> endpointToRanges = client.getEndpointToRangesMap();
+        Map<InetAddress, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
         outputHandler.output(String.format("Streaming revelant part of %sto %s", names(sstables), endpointToRanges.keySet()));
 
         // There will be one streaming session by endpoint
         LoaderFuture future = new LoaderFuture(endpointToRanges.size());
-        for (Map.Entry<InetAddress, Collection<Range>> entry : endpointToRanges.entrySet())
+        for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
             InetAddress remote = entry.getKey();
             if (toIgnore.contains(remote))
@@ -125,8 +136,8 @@ public class SSTableLoader
                 future.latch.countDown();
                 continue;
             }
-            Collection<Range> ranges = entry.getValue();
-            StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future.latch, remote));
+            Collection<Range<Token>> ranges = entry.getValue();
+            StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future, remote));
             // transferSSTables assumes references have been acquired
             SSTableReader.acquireReferences(sstables);
             StreamOut.transferSSTables(session, sstables, ranges, OperationType.BULK_LOAD);
@@ -139,6 +150,7 @@ public class SSTableLoader
     {
         final CountDownLatch latch;
         final Map<InetAddress, Collection<PendingFile>> pendingFiles;
+        private List<InetAddress> failedHosts = new ArrayList<InetAddress>();
 
         private LoaderFuture(int request)
         {
@@ -149,6 +161,16 @@ public class SSTableLoader
         private void setPendings(InetAddress remote, Collection<PendingFile> files)
         {
             pendingFiles.put(remote, new ArrayList(files));
+        }
+
+        private void setFailed(InetAddress addr)
+        {
+            failedHosts.add(addr);
+        }
+
+        public List<InetAddress> getFailedHosts()
+        {
+            return failedHosts;
         }
 
         public boolean cancel(boolean mayInterruptIfRunning)
@@ -162,10 +184,12 @@ public class SSTableLoader
             return null;
         }
 
-        public Void get(long timeout, TimeUnit unit) throws InterruptedException
+        public Void get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
         {
-            latch.await(timeout, unit);
-            return null;
+            if (latch.await(timeout, unit))
+                return null;
+            else
+                throw new TimeoutException();
         }
 
         public boolean isCancelled()
@@ -177,6 +201,11 @@ public class SSTableLoader
         public boolean isDone()
         {
             return latch.getCount() == 0;
+        }
+
+        public boolean hadFailures()
+        {
+            return failedHosts.size() > 0;
         }
 
         public Map<InetAddress, Collection<PendingFile>> getPendingFiles()
@@ -193,25 +222,33 @@ public class SSTableLoader
         return builder.toString();
     }
 
-    private class CountDownCallback implements Runnable
+    private class CountDownCallback implements IStreamCallback
     {
         private final InetAddress endpoint;
-        private final CountDownLatch latch;
+        private final LoaderFuture future;
 
-        CountDownCallback(CountDownLatch latch, InetAddress endpoint)
+        CountDownCallback(LoaderFuture future, InetAddress endpoint)
         {
-            this.latch = latch;
+            this.future = future;
             this.endpoint = endpoint;
         }
 
-        public void run()
+        public void onSuccess()
         {
-            latch.countDown();
-            outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, latch.getCount()));
+            future.latch.countDown();
+            outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, future.latch.getCount()));
 
             // There could be race with stop being called twice but it should be ok
-            if (latch.getCount() == 0)
+            if (future.latch.getCount() == 0)
                 client.stop();
+        }
+
+        public void onFailure()
+        {
+            outputHandler.output(String.format("Streaming session to %s failed", endpoint));
+            future.setFailed(endpoint);
+            future.latch.countDown();
+            client.stop();
         }
     }
 
@@ -226,16 +263,16 @@ public class SSTableLoader
 
     public static abstract class Client
     {
-        private final Map<InetAddress, Collection<Range>> endpointToRanges = new HashMap<InetAddress, Collection<Range>>();
+        private final Map<InetAddress, Collection<Range<Token>>> endpointToRanges = new HashMap<InetAddress, Collection<Range<Token>>>();
+        private IPartitioner partitioner;
 
         /**
          * Initialize the client.
          * Perform any step necessary so that after the call to the this
          * method:
-         *   * StorageService is correctly initialized (so that gossip and
-         *     messaging service is too)
+         *   * partitioner is initialized
          *   * getEndpointToRangesMap() returns a correct map
-         * This method is guaranted to be called before any other method of a
+         * This method is guaranteed to be called before any other method of a
          * client.
          */
         public abstract void init(String keyspace);
@@ -251,17 +288,28 @@ public class SSTableLoader
          */
         public abstract boolean validateColumnFamily(String keyspace, String cfName);
 
-        public Map<InetAddress, Collection<Range>> getEndpointToRangesMap()
+        public Map<InetAddress, Collection<Range<Token>>> getEndpointToRangesMap()
         {
             return endpointToRanges;
         }
 
-        protected void addRangeForEndpoint(Range range, InetAddress endpoint)
+        protected void setPartitioner(String partclass) throws ConfigurationException
         {
-            Collection<Range> ranges = endpointToRanges.get(endpoint);
+            this.partitioner = FBUtilities.newPartitioner(partclass);
+            DatabaseDescriptor.setPartitioner(partitioner);
+        }
+
+        public IPartitioner getPartitioner()
+        {
+            return partitioner;
+        }
+
+        protected void addRangeForEndpoint(Range<Token> range, InetAddress endpoint)
+        {
+            Collection<Range<Token>> ranges = endpointToRanges.get(endpoint);
             if (ranges == null)
             {
-                ranges = new HashSet<Range>();
+                ranges = new HashSet<Range<Token>>();
                 endpointToRanges.put(endpoint, ranges);
             }
             ranges.add(range);

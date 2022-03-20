@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,7 +23,7 @@ import java.io.*;
 import java.util.Arrays;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
@@ -38,15 +38,15 @@ import org.apache.cassandra.thrift.TBinaryProtocol;
 
 public class IndexScanCommand implements MessageProducer
 {
-    private static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
+    public static final IndexScanCommandSerializer serializer = new IndexScanCommandSerializer();
 
     public final String keyspace;
     public final String column_family;
     public final IndexClause index_clause;
     public final SlicePredicate predicate;
-    public final AbstractBounds range;
+    public final AbstractBounds<RowPosition> range;
 
-    public IndexScanCommand(String keyspace, String column_family, IndexClause index_clause, SlicePredicate predicate, AbstractBounds range)
+    public IndexScanCommand(String keyspace, String column_family, IndexClause index_clause, SlicePredicate predicate, AbstractBounds<RowPosition> range)
     {
 
         this.keyspace = keyspace;
@@ -61,7 +61,7 @@ public class IndexScanCommand implements MessageProducer
         DataOutputBuffer dob = new DataOutputBuffer();
         try
         {
-            serializer.serialize(this, dob);
+            serializer.serialize(this, dob, version);
         }
         catch (IOException e)
         {
@@ -77,22 +77,22 @@ public class IndexScanCommand implements MessageProducer
     {
         byte[] bytes = message.getMessageBody();
         FastByteArrayInputStream bis = new FastByteArrayInputStream(bytes);
-        return serializer.deserialize(new DataInputStream(bis));
+        return serializer.deserialize(new DataInputStream(bis), message.getVersion());
     }
 
-    private static class IndexScanCommandSerializer implements ISerializer<IndexScanCommand>
+    static class IndexScanCommandSerializer implements IVersionedSerializer<IndexScanCommand>
     {
-        public void serialize(IndexScanCommand o, DataOutput out) throws IOException
+        public void serialize(IndexScanCommand o, DataOutput out, int version) throws IOException
         {
             out.writeUTF(o.keyspace);
             out.writeUTF(o.column_family);
             TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
             FBUtilities.serialize(ser, o.index_clause, out);
             FBUtilities.serialize(ser, o.predicate, out);
-            AbstractBounds.serializer().serialize(o.range, out);
+            AbstractBounds.serializer().serialize(o.range, out, version);
         }
 
-        public IndexScanCommand deserialize(DataInput in) throws IOException
+        public IndexScanCommand deserialize(DataInput in, int version) throws IOException
         {
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
@@ -102,12 +102,11 @@ public class IndexScanCommand implements MessageProducer
             FBUtilities.deserialize(dser, indexClause, in);
             SlicePredicate predicate = new SlicePredicate();
             FBUtilities.deserialize(dser, predicate, in);
-            AbstractBounds range = AbstractBounds.serializer().deserialize(in);
-
+            AbstractBounds<RowPosition> range = AbstractBounds.serializer().deserialize(in, version).toRowBounds();
             return new IndexScanCommand(keyspace, columnFamily, indexClause, predicate, range);
         }
 
-        public long serializedSize(IndexScanCommand object)
+        public long serializedSize(IndexScanCommand object, int version)
         {
             throw new UnsupportedOperationException();
         }

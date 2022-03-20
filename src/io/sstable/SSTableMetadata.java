@@ -121,13 +121,13 @@ public class SSTableMetadata
 
         /**
          * Ratio is compressed/uncompressed and it is
-         * if you have 1.x then compression isn't helping 
+         * if you have 1.x then compression isn't helping
          */
         public void addCompressionRatio(long compressed, long uncompressed)
         {
             compressionRatio = (double) compressed/uncompressed;
         }
-        
+
         public void updateMaxTimestamp(long potentialMax)
         {
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
@@ -206,7 +206,9 @@ public class SSTableMetadata
             ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
                                           ? ReplayPosition.serializer.deserialize(dis)
                                           : ReplayPosition.NONE;
-            long maxTimestamp = desc.tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
+            long maxTimestamp = desc.containsTimestamp() ? dis.readLong() : Long.MIN_VALUE;
+            if (!desc.tracksMaxTimestamp) // see javadoc to Descriptor.containsTimestamp
+                maxTimestamp = Long.MIN_VALUE;
             double compressionRatio = desc.hasCompressionRatio
                                     ? dis.readDouble()
                                     : Double.MIN_VALUE;

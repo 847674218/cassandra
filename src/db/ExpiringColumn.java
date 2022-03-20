@@ -75,28 +75,10 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public boolean isMarkedForDelete()
-    {
-        /*
-         * For compaction, we need to ensure that at all time if
-         * localExpirationTime < gcbefore, then isMarkedForDelete() == true
-         * (otherwise LCR may expire columns between it's two phases compaction -- see #3579).
-         *
-         * Since during compaction we know that at all time, gcbefore <= now
-         * (the = is important in case where gc_grace=0), it follows that to
-         * ensure the propery above we need for isMarkedForDelete to be
-         * now > localExpirationTime (*not* now >= localExpiration). For the
-         * same reason, compaction should consider a column tomstoned if
-         * getLocalDeletionTime() < gcbefore, *not* if getLocalDeletionTime() <= gcbefore.
-         */
-        return (int) (System.currentTimeMillis() / 1000 ) > localExpirationTime;
-    }
-
-    @Override
     public int size()
     {
         /*
-         * An expired column adds to a Column : 
+         * An expired column adds to a Column :
          *    4 bytes for the localExpirationTime
          *  + 4 bytes for the timeToLive
         */
@@ -143,9 +125,9 @@ public class ExpiringColumn extends Column
             clonedName = allocator.clone(name);
         return new ExpiringColumn(clonedName, allocator.clone(value), timestamp, timeToLive, localExpirationTime);
     }
-    
+
     @Override
-    public String getString(AbstractType comparator)
+    public String getString(AbstractType<?> comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(super.getString(comparator));
@@ -181,5 +163,23 @@ public class ExpiringColumn extends Column
             throw new MarshalException("A column TTL should be > 0");
         if (localExpirationTime < 0)
             throw new MarshalException("The local expiration time should not be negative");
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        // super.equals() returns false if o is not a CounterColumn
+        return super.equals(o)
+            && localExpirationTime == ((ExpiringColumn)o).localExpirationTime
+            && timeToLive == ((ExpiringColumn)o).timeToLive;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = super.hashCode();
+        result = 31 * result + localExpirationTime;
+        result = 31 * result + timeToLive;
+        return result;
     }
 }

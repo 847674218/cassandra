@@ -20,12 +20,10 @@ package org.apache.cassandra.db;
 import java.io.Closeable;
 import java.util.*;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -33,8 +31,6 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class RowIteratorFactory
 {
-
-    private static final int RANGE_FILE_BUFFER_SIZE = 256 * 1024;
 
     private static final Comparator<IColumnIterator> COMPARE_BY_KEY = new Comparator<IColumnIterator>()
     {
@@ -44,7 +40,7 @@ public class RowIteratorFactory
         }
     };
 
-    
+
     /**
      * Get a row iterator over the provided memtables and sstables, between the provided keys
      * and filtered by the queryfilter.
@@ -53,45 +49,32 @@ public class RowIteratorFactory
      * @param startWith Start at this key
      * @param stopAt Stop and this key
      * @param filter Used to decide which columns to pull out
-     * @param comparator
+     * @param cfs
      * @return A row iterator following all the given restrictions
      */
     public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,
                                           final Collection<SSTableReader> sstables,
-                                          final DecoratedKey startWith,
-                                          final DecoratedKey stopAt,
+                                          final RowPosition startWith,
+                                          final RowPosition stopAt,
                                           final QueryFilter filter,
-                                          final AbstractType comparator,
                                           final ColumnFamilyStore cfs)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<CloseableIterator<IColumnIterator>> iterators = new ArrayList<CloseableIterator<IColumnIterator>>();
-        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
-        // this predicate throws out the rows before the start of our range.
-        Predicate<IColumnIterator> p = new Predicate<IColumnIterator>()
-        {
-            public boolean apply(IColumnIterator row)
-            {
-                return startWith.compareTo(row.getKey()) <= 0
-                       && (stopAt.isEmpty() || row.getKey().compareTo(stopAt) <= 0);
-            }
-        };
 
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator(filter, comparator, p, memtable.getEntryIterator(startWith)));
+            iterators.add(new ConvertToColumnIterator(filter, memtable.getEntryIterator(startWith, stopAt)));
         }
 
         for (SSTableReader sstable : sstables)
         {
             final SSTableScanner scanner = sstable.getScanner(filter);
             scanner.seekTo(startWith);
-            assert scanner instanceof Closeable; // otherwise we leak FDs
             iterators.add(scanner);
         }
 
-        final Memtable firstMemtable = memtables.iterator().next();
         // reduce rows from all sources into a single row
         return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<IColumnIterator, Row>()
         {
@@ -119,8 +102,10 @@ public class RowIteratorFactory
                 // First check if this row is in the rowCache. If it is we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 if (cached == null)
+                {
                     // not cached: collate
-                    filter.collateColumns(returnCF, colIters, comparator, gcBefore);
+                    filter.collateColumns(returnCF, colIters, gcBefore);
+                }
                 else
                 {
                     QueryFilter keyFilter = new QueryFilter(key, filter.path, filter.filter);
@@ -141,26 +126,20 @@ public class RowIteratorFactory
     private static class ConvertToColumnIterator extends AbstractIterator<IColumnIterator> implements CloseableIterator<IColumnIterator>
     {
         private final QueryFilter filter;
-        private final AbstractType comparator;
-        private final Predicate<IColumnIterator> pred;
         private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, AbstractType comparator, Predicate<IColumnIterator> pred, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
+        public ConvertToColumnIterator(QueryFilter filter, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.filter = filter;
-            this.comparator = comparator;
-            this.pred = pred;
             this.iter = iter;
         }
 
         public IColumnIterator computeNext()
         {
-            while (iter.hasNext())
+            if (iter.hasNext())
             {
                 Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
-                IColumnIterator ici = filter.getMemtableColumnIterator(entry.getValue(), entry.getKey(), comparator);
-                if (pred.apply(ici))
-                    return ici;
+                return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
             }
             return endOfData();
         }

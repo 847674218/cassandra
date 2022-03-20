@@ -64,7 +64,7 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public ByteBuffer decompose(BigInteger value)
     {
-        return ByteBuffer.wrap(value.toByteArray());
+        return JdbcInteger.instance.decompose(value);
     }
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
@@ -135,7 +135,7 @@ public final class IntegerType extends AbstractType<BigInteger>
         // Return an empty ByteBuffer for an empty string.
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        
+
         BigInteger integerType;
 
         try

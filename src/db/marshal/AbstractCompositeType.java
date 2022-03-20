@@ -19,14 +19,8 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.sql.Types;
-
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A class avoiding class duplication between CompositeType and
@@ -77,7 +71,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
         while (bb1.remaining() > 0 && bb2.remaining() > 0)
         {
-            AbstractType comparator = getNextComparator(i, bb1, bb2);
+            AbstractType<?> comparator = getNextComparator(i, bb1, bb2);
 
             ByteBuffer value1 = getWithShortLength(bb1);
             ByteBuffer value2 = getWithShortLength(bb2);
@@ -114,6 +108,23 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return 1;
     }
 
+    /**
+     * Split a composite column names into it's components.
+     */
+    public ByteBuffer[] split(ByteBuffer name)
+    {
+        List<ByteBuffer> l = new ArrayList<ByteBuffer>();
+        ByteBuffer bb = name.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            getNextComparator(i++, bb);
+            l.add(getWithShortLength(bb));
+            bb.get(); // skip end-of-component
+        }
+        return l.toArray(new ByteBuffer[l.size()]);
+    }
+
     public String getString(ByteBuffer bytes)
     {
         StringBuilder sb = new StringBuilder();
@@ -125,7 +136,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             if (bb.remaining() != bytes.remaining())
                 sb.append(":");
 
-            AbstractType comparator = getAndAppendNextComparator(i, bb, sb);
+            AbstractType<?> comparator = getAndAppendNextComparator(i, bb, sb);
             ByteBuffer value = getWithShortLength(bb);
 
             sb.append(comparator.getString(value));
@@ -182,8 +193,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public ByteBuffer fromString(String source)
     {
         String[] parts = source.split(":");
-        List<ByteBuffer> components = new ArrayList<ByteBuffer>();
-        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>();
+        List<ByteBuffer> components = new ArrayList<ByteBuffer>(parts.length);
+        List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.length);
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
 
@@ -196,7 +207,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             }
 
             ParsedComparator p = parseNextComparator(i, part);
-            AbstractType type = p.getAbstractType();
+            AbstractType<?> type = p.getAbstractType();
             part = p.getRemainingPart();
 
             ByteBuffer component = type.fromString(part);
@@ -230,7 +241,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         int i = 0;
         while (bb.remaining() > 0)
         {
-            AbstractType comparator = validateNextComparator(i, bb);
+            AbstractType<?> comparator = validateNextComparator(i, bb);
 
             if (bb.remaining() < 2)
                 throw new MarshalException("Not enough bytes to read value size of component " + i);
@@ -261,15 +272,15 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return value;
     }
 
-    abstract protected AbstractType getNextComparator(int i, ByteBuffer bb);
-    abstract protected AbstractType getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
-    abstract protected AbstractType getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb);
+    abstract protected AbstractType<?> getNextComparator(int i, ByteBuffer bb);
+    abstract protected AbstractType<?> getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
+    abstract protected AbstractType<?> getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb);
     abstract protected ParsedComparator parseNextComparator(int i, String part);
-    abstract protected AbstractType validateNextComparator(int i, ByteBuffer bb) throws MarshalException;
+    abstract protected AbstractType<?> validateNextComparator(int i, ByteBuffer bb) throws MarshalException;
 
     protected static interface ParsedComparator
     {
-        AbstractType getAbstractType();
+        AbstractType<?> getAbstractType();
         String getRemainingPart();
         int getComparatorSerializedSize();
         void serializeComparator(ByteBuffer bb);

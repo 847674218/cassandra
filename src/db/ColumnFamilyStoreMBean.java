@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.ConfigurationException;
@@ -33,22 +33,22 @@ public interface ColumnFamilyStoreMBean
      * @return the name of the column family
      */
     public String getColumnFamilyName();
-    
+
     /**
      * Returns the total amount of data stored in the memtable, including
      * column related overhead.
-     * 
+     *
      * @return The size in bytes.
      */
     public long getMemtableDataSize();
-    
+
     /**
      * Returns the total number of columns present in the memtable.
-     * 
+     *
      * @return The number of columns.
      */
     public long getMemtableColumnsCount();
-    
+
     /**
      * Returns the number of times that a flush has resulted in the
      * memtable being switched out.
@@ -56,11 +56,6 @@ public interface ColumnFamilyStoreMBean
      * @return the number of memtable switches
      */
     public int getMemtableSwitchCount();
-
-    /**
-     * Triggers an immediate memtable flush.
-     */
-    public Object forceFlush() throws IOException;
 
     /**
      * @return a histogram of the number of sstable data files accessed per read: reading this property resets it
@@ -101,7 +96,7 @@ public interface ColumnFamilyStoreMBean
      * @return the number of write operations on this column family
      */
     public long getWriteCount();
-    
+
     /**
      * @return total write latency (divide by getReadCount() for average)
      */
@@ -148,31 +143,17 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction() throws ExecutionException, InterruptedException;
 
     /**
-     * invalidate the key cache; for use after invalidating row cache
-     */
-    public void invalidateKeyCache();
-
-    /**
-     * invalidate the row cache; for use after bulk loading via BinaryMemtable
-     */
-    public void invalidateRowCache();
-
-
-    /**
-     * return the size of the smallest compacted row
-     * @return
+     * @return the size of the smallest compacted row
      */
     public long getMinRowSize();
 
     /**
-     * return the size of the largest compacted row
-     * @return
+     * @return the size of the largest compacted row
      */
     public long getMaxRowSize();
 
     /**
-     * return the mean size of the rows compacted
-     * @return
+     * @return the size of the smallest compacted row
      */
     public long getMeanRowSize();
 
@@ -218,6 +199,17 @@ public interface ColumnFamilyStoreMBean
     public String getCompactionStrategyClass();
 
     /**
+     * Get the compression parameters
+     */
+    public Map<String,String> getCompressionParameters();
+
+    /**
+     * Set the compression parameters
+     * @param opts map of string names to values
+     */
+    public void setCompressionParameters(Map<String,String> opts) throws ConfigurationException;
+
+    /**
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();
@@ -234,14 +226,12 @@ public interface ColumnFamilyStoreMBean
      */
     public List<String> getBuiltIndexes();
 
-    public int getRowCacheSavePeriodInSeconds();
-    public void setRowCacheSavePeriodInSeconds(int rcspis);
-
-    public int getKeyCacheSavePeriodInSeconds();
-    public void setKeyCacheSavePeriodInSeconds(int kcspis);
-
-    public int getRowCacheKeysToSave();
-    public void setRowCacheKeysToSave(int keysToSave);
+    /**
+     * Returns a list of filenames that contain the given key on this node
+     * @param key
+     * @return list of filenames containing the key
+     */
+    public List<String> getSSTablesForKey(String key);
 
     /**
      * Scan through Keyspace/ColumnFamily's data directory

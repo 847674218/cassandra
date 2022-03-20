@@ -24,11 +24,15 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import com.google.common.base.Function;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
-public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, IColumn> implements ISortedColumns
+public class ThreadSafeSortedColumns extends AbstractThreadUnsafeSortedColumns implements ISortedColumns
 {
+    private final ConcurrentSkipListMap<ByteBuffer, IColumn> map;
+
     public static final ISortedColumns.Factory factory = new Factory()
     {
         public ISortedColumns create(AbstractType<?> comparator, boolean insertReversed)
@@ -49,17 +53,17 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
 
     public AbstractType<?> getComparator()
     {
-        return (AbstractType)comparator();
+        return (AbstractType<?>)map.comparator();
     }
 
     private ThreadSafeSortedColumns(AbstractType<?> comparator)
     {
-        super(comparator);
+        this.map = new ConcurrentSkipListMap<ByteBuffer, IColumn>(comparator);
     }
 
     private ThreadSafeSortedColumns(SortedMap<ByteBuffer, IColumn> columns)
     {
-        super(columns);
+        this.map = new ConcurrentSkipListMap<ByteBuffer, IColumn>(columns);
     }
 
     public ISortedColumns.Factory getFactory()
@@ -69,7 +73,7 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
 
     public ISortedColumns cloneMe()
     {
-        return new ThreadSafeSortedColumns(this);
+        return new ThreadSafeSortedColumns(map);
     }
 
     public boolean isInsertReversed()
@@ -85,7 +89,7 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
     {
         ByteBuffer name = column.name();
         IColumn oldColumn;
-        while ((oldColumn = putIfAbsent(name, column)) != null)
+        while ((oldColumn = map.putIfAbsent(name, column)) != null)
         {
             if (oldColumn instanceof SuperColumn)
             {
@@ -97,7 +101,7 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
             {
                 // calculate reconciled col from old (existing) col and new col
                 IColumn reconciledColumn = column.reconcile(oldColumn, allocator);
-                if (replace(name, oldColumn, reconciledColumn))
+                if (map.replace(name, oldColumn, reconciledColumn))
                     break;
 
                 // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
@@ -109,10 +113,10 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ISortedColumns cm, Allocator allocator)
+    protected void addAllColumns(ISortedColumns cm, Allocator allocator, Function<IColumn, IColumn> transformation)
     {
         for (IColumn column : cm.getSortedColumns())
-            addColumn(column, allocator);
+            addColumn(transformation.apply(column), allocator);
     }
 
     public boolean replace(IColumn oldColumn, IColumn newColumn)
@@ -120,46 +124,61 @@ public class ThreadSafeSortedColumns extends ConcurrentSkipListMap<ByteBuffer, I
         if (!oldColumn.name().equals(newColumn.name()))
             throw new IllegalArgumentException();
 
-        return replace(oldColumn.name(), oldColumn, newColumn);
+        return map.replace(oldColumn.name(), oldColumn, newColumn);
     }
 
     public IColumn getColumn(ByteBuffer name)
     {
-        return get(name);
+        return map.get(name);
     }
 
     public void removeColumn(ByteBuffer name)
     {
-        remove(name);
+        map.remove(name);
+    }
+
+    public void clear()
+    {
+        map.clear();
+    }
+
+    public int size()
+    {
+        return map.size();
     }
 
     public Collection<IColumn> getSortedColumns()
     {
-        return values();
+        return map.values();
     }
 
     public Collection<IColumn> getReverseSortedColumns()
     {
-        return descendingMap().values();
+        return map.descendingMap().values();
     }
 
     public SortedSet<ByteBuffer> getColumnNames()
     {
-        return keySet();
-    }
-
-    public int getEstimatedColumnCount()
-    {
-        return size();
+        return map.navigableKeySet();
     }
 
     public Iterator<IColumn> iterator()
     {
-        return values().iterator();
+        return map.values().iterator();
     }
 
     public Iterator<IColumn> reverseIterator()
     {
         return getReverseSortedColumns().iterator();
+    }
+
+    public Iterator<IColumn> iterator(ByteBuffer start)
+    {
+        return map.tailMap(start).values().iterator();
+    }
+
+    public Iterator<IColumn> reverseIterator(ByteBuffer start)
+    {
+        return map.descendingMap().tailMap(start).values().iterator();
     }
 }

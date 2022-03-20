@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -84,7 +83,7 @@ public abstract class SegmentedFile
      */
     public Iterator<FileDataInput> iterator(long position, int bufferSize)
     {
-        return new SegmentIterator(position, bufferSize);
+        return new SegmentIterator(position);
     }
 
     /**
@@ -130,11 +129,9 @@ public abstract class SegmentedFile
     final class SegmentIterator implements Iterator<FileDataInput>
     {
         private long nextpos;
-        private final int bufferSize;
-        public SegmentIterator(long position, int bufferSize)
+        public SegmentIterator(long position)
         {
             this.nextpos = position;
-            this.bufferSize = bufferSize;
         }
 
         public boolean hasNext()

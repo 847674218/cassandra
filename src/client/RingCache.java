@@ -50,29 +50,29 @@ public class RingCache
     private final IPartitioner<?> partitioner;
     private final Configuration conf;
 
-    private Multimap<Range, InetAddress> rangeMap;
+    private Multimap<Range<Token>, InetAddress> rangeMap;
 
     public RingCache(Configuration conf) throws IOException
     {
         this.conf = conf;
-        this.partitioner = ConfigHelper.getPartitioner(conf);
+        this.partitioner = ConfigHelper.getOutputPartitioner(conf);
         refreshEndpointMap();
     }
 
     public void refreshEndpointMap()
     {
             try {
-                
-                Cassandra.Client client = ConfigHelper.getClientFromAddressList(conf);
+
+                Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
 
                 List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
                 rangeMap = ArrayListMultimap.create();
-                
+
                 for (TokenRange range : ring)
                 {
                     Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);
                     Token<?> right = partitioner.getTokenFactory().fromString(range.end_token);
-                    Range r = new Range(left, right, partitioner);
+                    Range<Token> r = new Range<Token>(left, right, partitioner);
                     for (String host : range.endpoints)
                     {
                         try
@@ -96,12 +96,12 @@ public class RingCache
             }
             catch (TException e)
             {
-                logger_.debug("Error contacting seed list" + ConfigHelper.getInitialAddress(conf) + " " + e.getMessage());
+                logger_.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
             }
         }
 
     /** ListMultimap promises to return a List for get(K) */
-    public List<InetAddress> getEndpoint(Range range)
+    public List<InetAddress> getEndpoint(Range<Token> range)
     {
         return (List<InetAddress>) rangeMap.get(range);
     }
@@ -111,11 +111,11 @@ public class RingCache
         return getEndpoint(getRange(key));
     }
 
-    public Range getRange(ByteBuffer key)
+    public Range<Token> getRange(ByteBuffer key)
     {
         // TODO: naive linear search of the token map
         Token<?> t = partitioner.getToken(key);
-        for (Range range : rangeMap.keySet())
+        for (Range<Token> range : rangeMap.keySet())
             if (range.contains(t))
                 return range;
 

@@ -268,28 +268,18 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return; // nothing to do, don't confuse users by logging a no-op handoff
 
         logger_.debug("Checking remote({}) schema before delivering hints", endpoint);
-        int waited;
         try
         {
-            waited = waitForSchemaAgreement(endpoint);
+            waitForSchemaAgreement(endpoint);
         }
         catch (TimeoutException e)
         {
             return;
         }
-        // sleep a random amount to stagger handoff delivery from different replicas.
-        // (if we had to wait, then gossiper randomness took care of that for us already.)
-        if (waited == 0)
-        {
-            // use a 'rounded' sleep interval because of a strange bug with windows: CASSANDRA-3375
-            int sleep = FBUtilities.threadLocalRandom().nextInt(2000) * 30;
-            logger_.debug("Sleeping {}ms to stagger hint delivery", sleep);
-            Thread.sleep(sleep);
-        }
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
-            logger_.info("Endpoint {} died before hint delivery, aborting", endpoint);
+            logger_.debug("Endpoint {} died before hint delivery, aborting", endpoint);
             return;
         }
 
@@ -321,7 +311,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         while (true)
         {
             QueryFilter filter = QueryFilter.getSliceFilter(epkey, new QueryPath(HINTS_CF), startColumn, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, pageSize);
-            ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+            ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int)(System.currentTimeMillis() / 1000));
             if (pagingFinished(hintsPage, startColumn))
                 break;
 
@@ -403,9 +393,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         IPartitioner p = StorageService.getPartitioner();
-        Range range = new Range(p.getMinimumToken(), p.getMinimumToken(), p);
+        RowPosition minPos = p.getMinimumToken().minKeyBound();
+        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos, p);
         IFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
-        List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter);
+        List<Row> rows = hintStore.getRangeSlice(null, range, Integer.MAX_VALUE, filter, null);
         for (Row row : rows)
         {
             Token<?> token = StorageService.getPartitioner().getTokenFactory().fromByteArray(row.key.key);
@@ -486,14 +477,14 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         // From keys "" to ""...
         IPartitioner<?> partitioner = StorageService.getPartitioner();
-        ByteBuffer empty = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        Range range = new Range(partitioner.getToken(empty), partitioner.getToken(empty));
+        RowPosition minPos = partitioner.getMinimumToken().minKeyBound();
+        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos);
 
         // Get a bunch of rows!
         List<Row> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand("system", parent, predicate, range, LARGE_NUMBER), ConsistencyLevel.ONE);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand("system", parent, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {

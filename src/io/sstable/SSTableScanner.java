@@ -27,14 +27,15 @@ import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CloseableIterator;
 
-public class SSTableScanner implements CloseableIterator<IColumnIterator>
+public class SSTableScanner implements ICompactionScanner
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableScanner.class);
 
@@ -56,6 +57,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
         this.sstable = sstable;
@@ -73,6 +75,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new IOError(e);
         }
         this.sstable = sstable;
@@ -84,7 +87,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         file.close();
     }
 
-    public void seekTo(DecoratedKey<?> seekKey)
+    public void seekTo(RowPosition seekKey)
     {
         try
         {
@@ -99,11 +102,12 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
         catch (IOException e)
         {
+            sstable.markSuspect();
             throw new RuntimeException("corrupt sstable", e);
         }
     }
 
-    public long getFileLength()
+    public long getLengthInBytes()
     {
         try
         {
@@ -115,9 +119,14 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
         }
     }
 
-    public long getFilePointer()
+    public long getCurrentPosition()
     {
         return file.getFilePointer();
+    }
+
+    public String getBackingFiles()
+    {
+        return sstable.toString();
     }
 
     public boolean hasNext()
@@ -153,6 +162,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
             }
             catch (IOException e)
             {
+                sstable.markSuspect();
                 throw new RuntimeException(e);
             }
         }
@@ -184,6 +194,7 @@ public class SSTableScanner implements CloseableIterator<IColumnIterator>
             }
             catch (IOException e)
             {
+                sstable.markSuspect();
                 throw new RuntimeException(SSTableScanner.this + " failed to provide next columns from " + this, e);
             }
         }

@@ -1,6 +1,6 @@
 package org.apache.cassandra.cache;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.cache;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -28,11 +28,13 @@ import java.util.Set;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+import com.googlecode.concurrentlinkedhashmap.Weigher;
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,11 +45,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(SerializingCache.class);
     private static final int DEFAULT_CONCURENCY_LEVEL = 64;
-    
+
     private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
     private final ISerializer<V> serializer;
 
-    public SerializingCache(int capacity, ISerializer<V> serializer, String tableName, String cfName)
+    public SerializingCache(long capacity, boolean useMemoryWeigher, ISerializer<V> serializer)
     {
         this.serializer = serializer;
 
@@ -58,13 +60,26 @@ public class SerializingCache<K, V> implements ICache<K, V>
                 mem.unreference();
             }
         };
+
         this.map = new ConcurrentLinkedHashMap.Builder<K, FreeableMemory>()
-                   .weigher(Weighers.<FreeableMemory>singleton())
-                   .initialCapacity(capacity)
+                   .weigher(useMemoryWeigher
+                                ? createMemoryWeigher()
+                                : Weighers.<FreeableMemory>singleton())
                    .maximumWeightedCapacity(capacity)
                    .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                    .listener(listener)
                    .build();
+    }
+
+    private static Weigher<FreeableMemory> createMemoryWeigher()
+    {
+        return new Weigher<FreeableMemory>()
+        {
+            public int weightOf(FreeableMemory value)
+            {
+                return (int) Math.min(value.size(), Integer.MAX_VALUE);
+            }
+        };
     }
 
 	private V deserialize(FreeableMemory mem)
@@ -107,12 +122,12 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return freeableMemory;
     }
 
-    public int capacity()
+    public long capacity()
     {
         return map.capacity();
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
         map.setCapacity(capacity);
     }
@@ -125,6 +140,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
     public int size()
     {
         return map.size();
+    }
+
+    public long weightedSize()
+    {
+        return map.weightedSize();
     }
 
     public void clear()
@@ -160,6 +180,52 @@ public class SerializingCache<K, V> implements ICache<K, V>
             old.unreference();
     }
 
+    public boolean putIfAbsent(K key, V value)
+    {
+        FreeableMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+
+        FreeableMemory old = map.putIfAbsent(key, mem);
+        if (old != null)
+            // the new value was not put, we've uselessly allocated some memory, free it
+            mem.unreference();
+        return old == null;
+    }
+
+    public boolean replace(K key, V oldToReplace, V value)
+    {
+        // if there is no old value in our map, we fail
+        FreeableMemory old = map.get(key);
+        if (old == null)
+            return false;
+
+        // see if the old value matches the one we want to replace
+        FreeableMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+
+        V oldValue;
+        // reference old guy before de-serializing
+        if (!old.reference())
+            return false; // we have already freed hence noop.
+        try
+        {
+             oldValue = deserialize(old);
+        }
+        finally
+        {
+            old.unreference();
+        }
+        boolean success = oldValue.equals(oldToReplace) && map.replace(key, old, mem);
+
+        if (success)
+            old.unreference(); // so it will be eventually be cleaned
+        else
+            mem.unreference();
+        return success;
+    }
+
     public void remove(K key)
     {
         FreeableMemory mem = map.remove(key);
@@ -175,6 +241,11 @@ public class SerializingCache<K, V> implements ICache<K, V>
     public Set<K> hotKeySet(int n)
     {
         return map.descendingKeySetWithLimit(n);
+    }
+
+    public boolean containsKey(K key)
+    {
+        return map.containsKey(key);
     }
 
     public boolean isPutCopying()

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -90,20 +90,21 @@ public class SSTableWriter extends SSTable
             dbuilder = SegmentedFile.getCompressedBuilder();
             dataFile = CompressedSequentialWriter.open(getFilename(),
                                                        descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                                       true,
+                                                       !DatabaseDescriptor.populateIOCacheOnFlush(),
                                                        metadata.compressionParameters(),
                                                        sstableMetadataCollector);
         }
         else
         {
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-            dataFile = SequentialWriter.open(new File(getFilename()), true);
+            dataFile = SequentialWriter.open(new File(getFilename()), 
+			                      !DatabaseDescriptor.populateIOCacheOnFlush());
             dataFile.setComputeDigest();
         }
 
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
-    
+
     public void mark()
     {
         dataMark = dataFile.mark();
@@ -123,19 +124,14 @@ public class SSTableWriter extends SSTable
         }
     }
 
+    /**
+     * Perform sanity checks on @param decoratedKey and @return the position in the data file before any data is written
+     */
     private long beforeAppend(DecoratedKey<?> decoratedKey) throws IOException
     {
-        if (decoratedKey == null)
-        {
-            throw new IOException("Keys must not be null.");
-        }
-        if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) > 0)
-        {
-            logger.info("Last written key : " + lastWrittenKey);
-            logger.info("Current key : " + decoratedKey);
-            logger.info("Writing into file " + getFilename());
-            throw new IOException("Keys must be written in ascending order.");
-        }
+        assert decoratedKey != null : "Keys must not be null";
+        assert lastWrittenKey == null || lastWrittenKey.compareTo(decoratedKey) < 0
+               : "Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename();
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
@@ -363,6 +359,12 @@ public class SSTableWriter extends SSTable
     static Descriptor rename(Descriptor tmpdesc, Set<Component> components)
     {
         Descriptor newdesc = tmpdesc.asTemporary(false);
+        rename(tmpdesc, newdesc, components);
+        return newdesc;
+    }
+
+    public static void rename(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
+    {
         try
         {
             // do -Data last because -Data present should mean the sstable was completely renamed before crash
@@ -374,7 +376,6 @@ public class SSTableWriter extends SSTable
         {
             throw new IOError(e);
         }
-        return newdesc;
     }
 
     public long getFilePointer()
@@ -395,7 +396,8 @@ public class SSTableWriter extends SSTable
 
         IndexWriter(long keyCount) throws IOException
         {
-            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)), true);
+            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)),
+                                              !DatabaseDescriptor.populateIOCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummary(keyCount);
 

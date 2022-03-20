@@ -1266,5 +1266,293 @@
     {
         "name": "F317",
         "normalProcess": "Fix ConcurrentModificationException in gossiper. java.util.ConcurrentModificationException in Gossiper."
+    },
+    {
+        "name": "F318",
+        "normalProcess": "Fix maxTimestamp to include row tombstones. check most recent TS values in SSTables when a row tombstone has already been encountered. once C* comes across a row tombstone, C* should check the TS on the tombstone against all SSTables. If the most recent TS in an SST is older than the row tombstone, that entire SST (or the remainder of it) can be safely ignored."
+    },
+    {
+        "name": "F319",
+        "normalProcess": "Avoid streaming empty files with bulk loader if sstablewriter errors out. BulkRecordWriter shouldn't stream any empty data/index files that might be created at end of flush. If by chance, we flush sstables during BulkRecordWriter (we have seen it happen), I want to make sure we don't try to stream them."
+    },
+    {
+        "name": "F320",
+        "normalProcess": "Support PropertyFileSnitch in bulk loader. NullPointerException when using sstableloader with PropertyFileSnitch configured."
+    },
+    {
+        "name": "F321",
+        "normalProcess": "Add auto_snapshot option allowing disabling snapshot before drop/truncate. Add a configuration option to disable snapshots. It gives cassandra the ability to permanently delete data at a large scale without any means of recovery."
+    },
+    {
+        "name": "F322",
+        "normalProcess": "Allow short snitch names. update snitch documentation."
+    },
+    {
+        "name": "F323",
+        "normalProcess": "cqlsh: guess correct version of Python for Arch Linux. cqlsh can't handle python being a python3. cqlsh fails to run when python is a Python 3."
+    },
+    {
+        "name": "F324",
+        "normalProcess": "(CLI) properly handle quotes in create/update keyspace commands. Cannot create keyspace with specific keywords through cli. Keyspaces cannot be create when the keyspace name which are used as keywords."
+    },
+    {
+        "name": "F325",
+        "normalProcess": "Avoids possible deadlock during bootstrap. isReadyForBootstrap doesn't compare schema UUID by timestamp as it should."
+    },
+    {
+        "name": "F326",
+        "normalProcess": "Fix stress tool that hangs forever on timeout or error. stress tool hangs forever on timeout or error. The stress tool hangs forever if it encounters a timeout or exception."
+    },
+    {
+        "name": "F327",
+        "normalProcess": "Fix super columns bug where cache is not updated. Apparent data loss using super columns and row cache via ConcurrentLinkedHashCacheProvider."
+    },
+    {
+        "name": "F328",
+        "normalProcess": "Stress tool to return appropriate exit code on failure. stress tool return a non-zero value when it fails."
+    },
+    {
+        "name": "F329",
+        "normalProcess": "Fix compaction NPE when out of disk space and assertions disabled. Ensure a directory is selected for Compaction.  CompactionTask.execute() checks if there is a valid compactionFileLocation only if partialCompactionsAcceptable() . upgradesstables results in a CompactionTask with userdefined set, so the valid location check is not performed."
+    },
+    {
+        "name": "F330",
+        "normalProcess": "Add populate_io_cache_on_flush option. make cache skipping optional. We've applied this patch locally in order to turn of page skipping; not completely but only for compaction/repair situations where it can be directly detrimental in the sense of causing data to become cold even though your entire data set fits in memory."
+    },
+    {
+        "name": "F331",
+        "normalProcess": "Allow larger cache capacities than 2GB. Allow larger cache capacities than 2GB. The problem is that capacity is a Integer which can maximum hold 2 GB."
+    },
+    {
+        "name": "F332",
+        "normalProcess": "Add getsstables command to nodetool. There should be an easy way to find out which sstables a key lives in."
+    },
+    {
+        "name": "F333",
+        "normalProcess": "Apply parent CF compaction settings to secondary index CFs. 2I CFs should inherit parent compaction settings."
+    },
+    {
+        "name": "F334",
+        "normalProcess": "Preserve commitlog size cap when recycling segments at startup. Preserve commitlog size cap when recycling segments at startup."
+    },
+    {
+        "name": "F335",
+        "normalProcess": "(Hadoop) fix split generation regression. Bug in SSTableReader.getSampleIndexesForRanges(...) causes uneven InputSplits generation for Hadoop mappers."
+    },
+    {
+        "name": "F336",
+        "normalProcess": "Ignore min/max compactions settings in LCS, while preserving behavior that min=max=0 disables autocompaction. overlapping sstables in leveled compaction strategy."
+    },
+    {
+        "name": "F337",
+        "normalProcess": "Log number of rows read from saved cache. LOGGING: Info log is not displaying number of rows read from saved cache at startup."
+    },
+    {
+        "name": "F338",
+        "normalProcess": "Calculate exact size required for cleanup operations. Improve pre-cleanup estimate of disk space required."
+    },
+    {
+        "name": "F339",
+        "normalProcess": "Avoid blocking additional writes during flush when the commitlog gets behind temporarily. CFS.maybeSwitchMemtable() calls CommitLog.instance.getContext(), which may block, under flusher lock write lock."
+    },
+    {
+        "name": "F340",
+        "normalProcess": "Enable caching on index CFs based on data CF cache setting. Index caching. Currently, the hidden CFs backing secondary indexes are created with Caching.NONE, which can result in slower-than-expected index queries."
+    },
+    {
+        "name": "F341",
+        "normalProcess": "Warn on invalid replication strategy creation options. when creating keyspace with simple strategy, it should only acception replication_factor as an option."
+    },
+    {
+        "name": "F342",
+        "normalProcess": "Remove [Freeable]Memory finalizers. Improve serializing off-heap cache by not using finalizers."
+    },
+    {
+        "name": "F343",
+        "normalProcess": "Include tombstone size in ColumnFamily.size, which can prevent OOM during sudden mass delete operations by yielding a nonzero liveRatio. OOMs because delete operations are not accounted."
+    },
+    {
+        "name": "F344",
+        "normalProcess": "Open 1 sstableScanner per level for leveled compaction. OOM Exception during repair session with LeveledCompactionStrategy."
+    },
+    {
+        "name": "F345",
+        "normalProcess": "Optimize reads when row deletion timestamps allow us to restrict the set of sstables we check. check most recent TS values in SSTables when a row tombstone has already been encountered."
+    },
+    {
+        "name": "F346",
+        "normalProcess": "Add support for commitlog archiving and point-in-time recovery. Streaming CommitLog backup."
+    },
+    {
+        "name": "F347",
+        "normalProcess": "Avoid generating redundant compaction tasks during streaming. Unnecessary compaction happens when streaming."
+    },
+    {
+        "name": "F348",
+        "normalProcess": "Add -cf option to nodetool snapshot, and takeColumnFamilySnapshot to StorageService mbean. nodeprobe snapshot to support specific column families."
+    },
+    {
+        "name": "F349",
+        "normalProcess": "Optimize cleanup to drop entire sstables where possible. Check SSTable range before running cleanup."
+    },
+    {
+        "name": "F350",
+        "normalProcess": "Optimize truncate when autosnapshot is disabled. Optimize truncate when snapshots are disabled or keyspace not durable."
+    },
+    {
+        "name": "F351",
+        "normalProcess": "Update caches to use byte[] keys to reduce memory overhead. KeyCacheKey and RowCacheKey to use raw byte[]."
+    },
+    {
+        "name": "F352",
+        "normalProcess": "Add column limit to cli. cassandra-cli list <CF> limit number of columns returned. Listing wide-rows from CLI crashes Cassandra."
+    },
+    {
+        "name": "F353",
+        "normalProcess": "Clean up and optimize DataOutputBuffer, used by CQL compression and CompositeType. Clean up DataOutputBuffer."
+    },
+    {
+        "name": "F354",
+        "normalProcess": "Optimize commitlog checksumming. Checksum improvement for CommitLog."
+    },
+    {
+        "name": "F355",
+        "normalProcess": "Identify and blacklist corrupted SSTables from future compactions. During Compaction, Corrupt SSTables with rows that cause failures should be identified and blacklisted."
+    },
+    {
+        "name": "F356",
+        "normalProcess": "Move CfDef and KsDef validation out of thrift. Move CfDef and KsDef validation to CFMetaData and KSMetaData."
+    },
+    {
+        "name": "F357",
+        "normalProcess": "Expose API to repair a user provided range. repair user provided custom token range (support incremental repair controlled by external agent)."
+    },
+    {
+        "name": "F358",
+        "normalProcess": "Add way to force the cassandra-cli to refresh its schema. Add way to force the cassandra-cli to refresh it's schema."
+    },
+    {
+        "name": "F359",
+        "normalProcess": "Avoid having replicate on write tasks stacking up at CL.ONE. Avoids having replicate on write tasks stacking up at CL.ONE"
+    },
+    {
+        "name": "F360",
+        "normalProcess": "(cql3) Backwards compatibility for composite comparators in non-cql3-aware clients. schema_* CFs do not respect column comparator which leads to CLI commands failure."
+    },
+    {
+        "name": "F361",
+        "normalProcess": "(cql3) Fix order by for reversed queries. ORDER BY ... DESC reverses comparrison predicates in WHERE."
+    },
+    {
+        "name": "F362",
+        "normalProcess": "(cql3) Add ReversedType support. Add support for ReversedType."
+    },
+    {
+        "name": "F363",
+        "normalProcess": "(cql3) Add timeuuid type. CQL3: improve experience with time uuid."
+    },
+    {
+        "name": "F364",
+        "normalProcess": "(cql3) Minor fixes. Minor CQL3 fixes."
+    },
+    {
+        "name": "F365",
+        "normalProcess": "(cql3) Fix prepared statement in BATCH. CQL 3.0 prepare_cql_query fails on BEGIN BATCH."
+    },
+    {
+        "name": "F366",
+        "normalProcess": "(cql3) Reduce the list of reserved keywords. CQL3: make some keywords unreserved."
+    },
+    {
+        "name": "F367",
+        "normalProcess": "(cql3) Move max/min compaction thresholds to compaction strategy options. CQL3: move {max/min}_compaction_thresholds to compaction options."
+    },
+    {
+        "name": "F368",
+        "normalProcess": "Fix exception during move when localhost is the only source. Move error on 1 node cluster."
+    },
+    {
+        "name": "F369",
+        "normalProcess": "(cql3) Allow paging through non-ordered partitioner results. Allow paging through non-ordered partitioner results in CQL3."
+    },
+    {
+        "name": "F370",
+        "normalProcess": "(cql3) Fix drop index. CQL3: fix index dropping and assign default name if none provided at index creation."
+    },
+    {
+        "name": "F371",
+        "normalProcess": "(cql3) Don't return range ghosts anymore. Explore not returning range ghost."
+    },
+    {
+        "name": "F372",
+        "normalProcess": "Fix re-creating Keyspaces/ColumnFamilies with the same name as dropped ones. Problem with creating keyspace after drop."
+    },
+    {
+        "name": "F373",
+        "normalProcess": "Fix SecondaryIndex LeveledManifest save upon snapshot. Deleting a CF always produces an error and that CF remains in an unknown state."
+    },
+    {
+        "name": "F374",
+        "normalProcess": "Fix missing arrayOffset in FBUtilities.hash Missing arrayOffset in FBUtilities.hash."
+    },
+    {
+        "name": "F375",
+        "normalProcess": "(cql3) Add name of parameters in CqlResultSet. Name of parameters should be available in CqlPreparedResult."
+    },
+    {
+        "name": "F376",
+        "normalProcess": "(cql3) Correctly validate order by queries. cql3 ORDER BY not ordering."
+    },
+    {
+        "name": "F377",
+        "normalProcess": "Rename stress to cassandra-stress for saner packaging. Include stress tool in debian packaging."
+    },
+    {
+        "name": "F378",
+        "normalProcess": "Fix exception on colum metadata with non-string comparator. Setting column metadata for non-string comparator CFs breaks."
+    },
+    {
+        "name": "F379",
+        "normalProcess": "Check for unknown/invalid compression options. Validate compression parameters."
+    },
+    {
+        "name": "F380",
+        "normalProcess": "(cql3) Adds simple access to column timestamp and ttl. Easy access to column timestamps (and maybe ttl) during queries."
+    },
+    {
+        "name": "F381",
+        "normalProcess": "(cql3) Fix range queries with secondary indexes. CQL3 range query with secondary index fails."
+    },
+    {
+        "name": "F382",
+        "normalProcess": "Better error messages from improper input in cli. Cassandra-cli returns 'command not found' instead of syntax error."
+    },
+    {
+        "name": "F383",
+        "normalProcess": "Try to stop all compaction upon Keyspace or ColumnFamily drop. Error while deleting a columnfamily that is being compacted."
+    },
+    {
+        "name": "F384",
+        "normalProcess": "(cql3) Allow keyspace properties to contain hyphens. Can't specify certain keyspace properties in CQL."
+    },
+    {
+        "name": "F385",
+        "normalProcess": "(cql3) Correctly validate keyspace access in create table. CQL3: create table don't always validate access to the right keyspace."
+    },
+    {
+        "name": "F386",
+        "normalProcess": "Avoid deadlock in migration stage. avoid distributed deadlock in migration stage."
+    },
+    {
+        "name": "F387",
+        "normalProcess": "Take supercolumn names and deletion info into account in memtable throughput. live ratio limit 64.0 is way too low."
+    },
+    {
+        "name": "F388",
+        "normalProcess": "Add back backward compatibility for old style replication factor. Upgrading encounters: 'SimpleStrategy requires a replication_factor strategy option.' and refuses to start."
+    },
+    {
+        "name": "F389",
+        "normalProcess": "Preserve compatibility with pre-1.1 index queries. 1.1 does not preserve compatibility w/ index queries against 1.0 nodes."
     }
 ]

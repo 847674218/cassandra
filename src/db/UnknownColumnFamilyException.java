@@ -24,7 +24,7 @@ import java.io.IOException;
 public class UnknownColumnFamilyException extends IOException
 {
     public final int cfId;
-    
+
     public UnknownColumnFamilyException(String msg, int cfId)
     {
         super(msg);
