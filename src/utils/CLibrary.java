@@ -18,13 +18,17 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.commons.lang.StringUtils;
 
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
@@ -101,8 +105,7 @@ public final class CLibrary
     {
         try
         {
-            int result = mlockall(MCL_CURRENT);
-            assert result == 0; // mlockall should always be zero on success
+            mlockall(MCL_CURRENT);
             logger.info("JNA mlockall successful");
         }
         catch (UnsatisfiedLinkError e)
@@ -139,8 +142,7 @@ public final class CLibrary
     {
         try
         {
-            int result = link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
-            assert result == 0; // success is always zero
+            link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
         }
         catch (UnsatisfiedLinkError e)
         {
@@ -148,6 +150,7 @@ public final class CLibrary
         }
         catch (RuntimeException e)
         {
+            logger.error("Unable to create hard link", e);
             if (!(e instanceof LastErrorException))
                 throw e;
             // there are 17 different error codes listed on the man page.  punt until/unless we find which
@@ -178,10 +181,37 @@ public final class CLibrary
             pb = new ProcessBuilder("ln", sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
             pb.redirectErrorStream(true);
         }
+        try
+        {
+            exec(pb);
+        }
+        catch (IOException ex)
+        {
+            logger.error("Unable to create hard link", ex);
+            throw ex;
+        }
+    }
+
+    private static void exec(ProcessBuilder pb) throws IOException
+    {
         Process p = pb.start();
         try
         {
-            p.waitFor();
+            int errCode = p.waitFor();
+            if (errCode != 0)
+            {
+                BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+                StringBuffer buff = new StringBuffer();
+                String str;
+                while ((str = in.readLine()) != null)
+                    buff.append(str).append(System.getProperty("line.separator"));
+                while ((str = err.readLine()) != null)
+                    buff.append(str).append(System.getProperty("line.separator"));
+                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                                      ", command error Code: " + errCode +
+                                      ", command output: "+ buff.toString());
+            }
         }
         catch (InterruptedException e)
         {
@@ -210,12 +240,12 @@ public final class CLibrary
 
     public static int tryFcntl(int fd, int command, int flags)
     {
+        // fcntl return value may or may not be useful, depending on the command
         int result = -1;
 
         try
         {
             result = CLibrary.fcntl(fd, command, flags);
-            assert result >= 0; // on error a value of -1 is returned and errno is set to indicate the error.
         }
         catch (RuntimeException e)
         {

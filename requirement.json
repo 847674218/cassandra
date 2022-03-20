@@ -658,5 +658,613 @@
     {
         "name": "F165",
         "normalProcess": "Fix displaying cfdef entries for super columnfamilies. show schema fails. following command breaks show schema cli command with error A long is exactly 8 bytes: 5."
+    },
+    {
+        "name": "F166",
+        "normalProcess": "Revert name-based query defragmentation. Eagerly re-write data at read time.  it will be possible to implement an optimization to eagerly rewrite (supersede) data at read time. If a successful read needed to hit more than a certain threshold of sstables, we can eagerly rewrite it in a new sstable, and 2498 will allow only that file to be accessed. This basic approach would improve read performance considerably, but would cause a lot of duplicate data to be written, and would make compaction's work more necessary. Recursion bug in CollationController."
+    },
+    {
+        "name": "F167",
+        "normalProcess": "Fix invalidate-related test failures. invalidate / unregisterSSTables is confused. invalidate doesn't call unregisterSSTables, and vice versa, making it easy to get yourself into a situation that shouldn't happen."
+    },
+    {
+        "name": "F168",
+        "normalProcess": "Add next-gen cqlsh to bin. cqlsh 2.0 I'd like to see some improvements to cqlsh to bring it to feature parity. cqlsh doesn't work on windows. cqlsh complains when you try to do UPDATE with counter columns."
+    },
+    {
+        "name": "F169",
+        "normalProcess": "(CQL) fix handling of rows with no columns. Selecting just the row_key returns nil instead of just the row_key.CREATE KEYSPACE CassandraCQLTestKeyspace WITH strategy_class='org.apache.cassandra.locator.SimpleStrategy' AND strategy_options:replication_factor=1 USE CassandraCQLTestKeyspace."
+    },
+    {
+        "name": "F170",
+        "normalProcess": "Fix querying supercolumns by name returning only a subset of subcolumns or old subcolumn versions. Problem SliceByNamesReadCommand on super column family after flush operation."
+    },
+    {
+        "name": "F171",
+        "normalProcess": "Automatically compute sha1 sum for uncompressed data files. Automatically create SHA1 of new sstables. Compressed sstables have block checksums which is great but non-compressed sstables don't for technical/compatibility reasons that I'm not criticizing. It's a bit annoying because when someone comes up with a corrupted file, we really have nothing to help discarding it as bitrot or not. However, it would be fairly trivial/cheap to compute the SHA1 (or other) of whole sstables when creating them. And if it's a new, separate, sstable component, we don't even have to implement anything to check the hash. It would only be there to (manually) check for bitrot when corruption is suspected by the user, or to say check the integrity of backups."
+    },
+    {
+        "name": "F172",
+        "normalProcess": "Fix reading metadata/statistics component for version. SSTableMetadata deserialization works but looks broken."
+    },
+    {
+        "name": "F173",
+        "normalProcess": "Add sstable forward-compatibility. Add support for sstable forwards-compatibility."
+    },
+    {
+        "name": "F174",
+        "normalProcess": "Report compression ratio in CFSMBean. report compression ratio in CFSMBean.(should expose in nodetool cfstats as well)."
+    },
+    {
+        "name": "F175",
+        "normalProcess": "Fix incorrect size exception during streaming of counters. During repair, incorrect data size & Connection reset errors. Repair unable to complete."
+    },
+    {
+        "name": "F176",
+        "normalProcess": "(CQL) fix for counter decrement syntax. Counter decrements require a space around the minus sign but not around the plus sign."
+    },
+    {
+        "name": "F177",
+        "normalProcess": "Fix race introduced by CASSANDRA-2503. Flush Assertion Error - CF size changed during serialization."
+    },
+    {
+        "name": "F178",
+        "normalProcess": "Fix incomplete deletion of delivered hints. Hinted handoff not working after rolling upgrade. While testing rolling upgrades from 0.8.7 to 1.0.2 on a test cluster I've noticed that hinted hand-off didn't always work properly. Hints generated on an upgraded node does not seem to be delivered to other newly upgraded nodes once they rejoin the ring. They only way I've found to get a node to deliver its hints is to restart it."
+    },
+    {
+        "name": "F179",
+        "normalProcess": "Avoid rescheduling compactions when no compaction was executed. Bizarre Compaction Manager Behaviour. t seems the CompactionManager has gotten itself into a bad state. My 1.0.2 node has been up for 20 hours now - checking via JMX, the compaction manager is reporting that it has completed 14,797,412,000 tasks. Yep, thats right 14 billion tasks and increasing at a rate of roughly 208,400/second."
+    },
+    {
+        "name": "F180",
+        "normalProcess": "Fix handling of the chunk_length_kb compression options. Compression option chunk_length is not converted into KB as it should."
+    },
+    {
+        "name": "F181",
+        "normalProcess": "Fix updating CF row_cache_provider. Not possible to change row_cache_provider on existing cf.row_cache_provider is not possible to change using update column family xyz with row_cache_provider='something'"
+    },
+    {
+        "name": "F182",
+        "normalProcess": "CFMetaData.convertToThrift method to set RowCacheProvider. Row cache provider reported wrong in cassandra-cli When doing show schema; in the CLI, the row_cache_provider is reported as ConcurrentLinkedHashCacheProvider while it really is SerializingCacheProvider."
+    },
+    {
+        "name": "F183",
+        "normalProcess": "Make counter shard merging thread safe. Counter shard merging is not thread safe. The first part of the counter shard merging process is done during counter replication. This was done there because it requires that all replica are made aware of the merging (we could only rely on nodetool repair for that but that seems much too fragile, it's better as just a safety net)."
+    },
+    {
+        "name": "F184",
+        "normalProcess": "Revert. (Hadoop) Skip rows with empty columns when slicing entire row. We have been finding that range ghosts appear in results from Hadoop via Pig. This could also happen if rows don't have data for the slice predicate that is given. This leads to having to do a painful amount of defensive checking on the Pig side, especially in the case of range ghosts. (Hadoop) skip empty rows when entire row is requested, redux."
+    },
+    {
+        "name": "F185",
+        "normalProcess": "Fix bug preventing the use of efficient cross-DC writes. Actually uses efficient cross DC writes."
+    },
+    {
+        "name": "F186",
+        "normalProcess": "Describe ring` command for CLI . add describe_ring to cli. Lately I have found the describe_ring feature was needed to debug/analyze issue, but the cli does not have this available."
+    },
+    {
+        "name": "F187",
+        "normalProcess": "Fix self-hinting of timed out read repair updates and make hinted handoff less prone to OOMing a coordinator. local writes timing out cause attempt to hint to self."
+    },
+    {
+        "name": "F188",
+        "normalProcess": "Expose bloom filter sizes via JMX. capture BloomFilter memory size in Cassandra (JMX)."
+    },
+    {
+        "name": "F189",
+        "normalProcess": "Enforce RP tokens 0..2**127. Move allows you to move to tokens > 2**127 Currently you can move to tokens greater than what should be the max token in RP."
+    },
+    {
+        "name": "F190",
+        "normalProcess": "Canonicalize paths exposed through JMX. Storage paths exposed in JMX should be absolute/canonical. The data, commitlog, and saved caches directories are exposed through JMX. However, what's exposed is just exactly what's in the config file. This can be ambiguous in some cases."
+    },
+    {
+        "name": "F191",
+        "normalProcess": "Fix liveSize stat when sstables are removed. Load from `nodetool ring` does not update after cleanup."
+    },
+    {
+        "name": "F192",
+        "normalProcess": "Add bloom filter FP rates to nodetool cfstats. include bloomfilter stats in nodeCmd output."
+    },
+    {
+        "name": "F193",
+        "normalProcess": "Record partitioner in sstable metadata component. Changing partitioner causes interval tree build failure before the change can be detected."
+    },
+    {
+        "name": "F194",
+        "normalProcess": "Add new upgradesstables nodetool command. Create a nodetool upgrade_sstables to avoid using scrubs for tasks it wasn't intended to."
+    },
+    {
+        "name": "F195",
+        "normalProcess": "Skip --debug requirement to see common exceptions in CLI. requiring --debug to see stack traces for failures in cassandra-cli is a terrible idea (aka silent failure is never a valid option)."
+    },
+    {
+        "name": "F196",
+        "normalProcess": "Fix incorrect query results due to invalid max timestamp. Incorrect query results due to invalid SSTable.maxTimestamp."
+    },
+    {
+        "name": "F197",
+        "normalProcess": "Make sstableloader recognize compressed sstables. sstableloader throwing exceptions when loading snapshot data from compressed CFs. Loaded data from snapshot then enabled `sstable_compression: org.apache.cassandra.io.compress.SnappyCompressor` Then flush, scrub and compact. I can see actual CompressionRatio in JMX Console and access my data without problems..Now I snapshot compressed keyspace and when trying to load snapshot to another single node or different Keyspace (the same super CF structure with compression options enabled, even try to truncate snapshoted CFs.) I cant retrieve any records."
+    },
+    {
+        "name": "F198",
+        "normalProcess": "Avoids race in OutboundTcpConnection in multi-DC setups. Header class not thread safe, but mutated by multiple threads."
+    },
+    {
+        "name": "F199",
+        "normalProcess": "Use SETLOCAL in cassandra.bat cassandra.bat does not use SETLOCAL, can cause classpath issues."
+    },
+    {
+        "name": "F200",
+        "normalProcess": "Fix ConcurrentModificationException in Table.all() ConcurrentModificationException in Table.all()."
+    },
+    {
+        "name": "F201",
+        "normalProcess": "Fix concurrence issue in the FailureDetector. ConcurrentModificationException in FailureDetector."
+    },
+    {
+        "name": "F202",
+        "normalProcess": "Fix array out of bounds error in counter shard removal. CounterColumnFamily Compaction error (ArrayIndexOutOfBoundsException)."
+    },
+    {
+        "name": "F203",
+        "normalProcess": "Void dropping tombstones when they might still be needed to shadow data in a different sstable. After a minor compaction, deleted key-slices are visible again."
+    },
+    {
+        "name": "F204",
+        "normalProcess": "Revert Wrong check of partitioner for secondary indexes. doesn't handle the fact that secondary indexes have a specific partitioner (LocalPartitioner)."
+    },
+    {
+        "name": "F205",
+        "normalProcess": "Fix assertion error while forwarding writes to local nodes. Assertion error when forwarding to local nodes. Started a rolling upgrade from 1.0.3 to 1.0.4 now all boxes are constantly spitting out this assert."
+    },
+    {
+        "name": "F206",
+        "normalProcess": "(CQL) fix cqlsh support for replicate_on_write. cqlsh: DESCRIBE output for a columnfamily does not work as input to same C* instance. The DESCRIBE COLUMNFAMILY cqlsh command produces output that is intended to be usable as valid CQL (at least, when given to another Cassandra instance of the same version). But the output yields errors when run: So it needs to do a better job of determining which CF attributes are valid for which C* versions."
+    },
+    {
+        "name": "F207",
+        "normalProcess": "Fix adding to leveled manifest after streaming. Assertion error during bootstraping cassandra."
+    },
+    {
+        "name": "F208",
+        "normalProcess": "Filter out unavailable cipher suites when using encryption. Counter shard merging is not thread safe. The first part of the counter shard merging process is done during counter replication. This was done there because it requires that all replica are made aware of the merging (we could only rely on nodetool repair for that but that seems much too fragile, it's better as just a safety net)."
+    },
+    {
+        "name": "F209",
+        "normalProcess": "(HADOOP) add old-style api support for CFIF and CFRR. Implement old style api support for ColumnFamilyInputFormat and ColumnFamilyRecordReader. For better compatibility with hadoop, I would like to add old style hadoop support (mapred) to the ColumnFamilyInputFormat and ColumnFamilyRecordReader."
+    },
+    {
+        "name": "F210",
+        "normalProcess": "Support TimeUUIDType column names in Stress.java tool. Support timeuuid column names. Real-world Cassandra applications often use wide rows to denormalize queries into. Most often, this means they do a lot of appending to existing rows, with few overwrites. An easy way to add this to Stress would be to allow specifying timeuuid column names (which will be inherently sequential, or nearly so)."
+    },
+    {
+        "name": "F211",
+        "normalProcess": "(CQL) INSERT/UPDATE/DELETE/TRUNCATE commands should allow CF names to be qualified by keyspace. CQL queries should allow CF names to be qualified by keyspace."
+    },
+    {
+        "name": "F212",
+        "normalProcess": "Always remove endpoints from delevery queue in HH. Hinted handoffs isn't delivered if/when HintedHandOffManager ends up in invalid state."
+    },
+    {
+        "name": "F213",
+        "normalProcess": "Fix race between cf flush and its 2ndary indexes flush. Race between cf flush and its secondary indexes flush. When a CF with indexes is flushed, it's indexes are flushed too. In particular their memtable is switched, but without making the old memtable frozen. This can conflict with a concurrent flush of the index itself."
+    },
+    {
+        "name": "F214",
+        "normalProcess": "Fix potential race in AES when a repair fails. NPE in AntiEntropyService$RepairSession.completed()."
+    },
+    {
+        "name": "F215",
+        "normalProcess": "Fix default value validation usage in CLI SET command. value validator in the cli does not pick up."
+    },
+    {
+        "name": "F216",
+        "normalProcess": "Optimize componentsFor method for compaction and startup time. Compaction cleanupIfNecessary costly when many files in data dir. From what I can tell SSTableWriter.cleanupIfNecessary seems increasingly costly as the number of files in the data dir increases."
+    },
+    {
+        "name": "F217",
+        "normalProcess": "(CQL) Proper ColumnFamily metadata validation on CREATE COLUMNFAMILY. CQL CF creation skips most of the validation code. Most validation is done by ThriftValidation.validateCfDef, which we call from QP when creating an index but not on CF creation."
+    },
+    {
+        "name": "F218",
+        "normalProcess": "Fix compression chunk_length_kb option to set correct kb value for thrift/avro. Compression chunk_length_kb is not correctly returned for thrift/avro. fixed the interpretation of chunk_length_kb as a size in bytes but infortunately forgot to convert it back to kb when returning it for thrift/avro. In particular, this means that a describe cf would return things like chunk_length_kb: 65535."
+    },
+    {
+        "name": "F219",
+        "normalProcess": "Fix missing response during range slice repair. Timeout exception for quorum reads after upgrade from 1.0.2 to 1.0.5  For some column families always got TimeoutException. I turned on debug and increase rpc_timeout to 1 minute, but still got timeout. I believe it is bug on 1.0.5."
+    },
+    {
+        "name": "F220",
+        "normalProcess": "Describe ring' moved from CLI to nodetool and available through JMX. add describe_ring to cli. Lately I have found the describe_ring feature was needed to debug/analyze issue, but the cli does not have this available."
+    },
+    {
+        "name": "F221",
+        "normalProcess": "Add back partitioner to sstable metadata. Wrong check of partitioner for secondary indexes. doesn't handle the fact that secondary indexes have a specific partitioner (LocalPartitioner)."
+    },
+    {
+        "name": "F222",
+        "normalProcess": "Fix NPE in get_count for counters. get_count NullPointerException with counters. get_count doesn't currently work for counter columns or super counter columns. The fix seems to be pretty simple."
+    },
+    {
+        "name": "F223",
+        "normalProcess": "Remove invalid assertion that table was opened before dropping it. Don't assume the Table instance has been open when dropping a keyspace. DropKeyspace assumes that the Table had been open (rather, it checks that Table.clear() don't return null). It has been seen however that in the case of a fat client (the sstableloader in that case, but it would be true for any fat client) the Table may not have been open. Let's just remove that assertion."
+    },
+    {
+        "name": "F224",
+        "normalProcess": "Range and index scans now only send requests to enough replicas to satisfy requested CL + RR. Index Scan's will span across multiple DC's. Looks like we send requests to all the nodes provided by StorageService.instance.getLiveNaturalEndpoints(keyspace, range.right); We dont filter it based on blockedFor (Consistency levels)."
+    },
+    {
+        "name": "F225",
+        "normalProcess": "Use cannonical host for local node in nodetool info. nodetool info reports inaccurate datacenter/rack for localhost. The datacenter & rack information provided by 'nodetool info' is incorrect when using 'nodetool -h localhost info'. This is because the IP address passed to the EndpointSnitch to determine the datacenter & rack is sourced from the host parameter provided to nodetool and not the actual endpoint address used in the ring."
+    },
+    {
+        "name": "F226",
+        "normalProcess": "Remove nonlocal DC write optimization since it only worked with CL.ONE or CL.LOCAL_QUORUM. TimeoutException When using QuorumEach or ALL consistency on Multi-DC. Intermittent exceptions seen in cassandra 1.0.5 during Reads."
+    },
+    {
+        "name": "F227",
+        "normalProcess": "Detect misuses of CounterColumnType. Can create a Column Family with comparator CounterColumnType which is subsequently unusable. It's probably the case that this shouldn't be allowed at all but one is currently allowed to create a Column Family with comparator CounterColumnType which then appears unusable. CREATE COLUMNFAMILY comparator_cf_counter (id text PRIMARY KEY) WITH comparator=CounterColumnType."
+    },
+    {
+        "name": "F228",
+        "normalProcess": "Turn off string interning in json2sstable, take 2. json2sstable fails due to OutOfMemory. I have a json file created with sstable2json for a column family of super column type. Its size is about 1.9GB. (It's a dump of all keys because I cannot find out how to specify keys to dump in sstable2json.)"
+    },
+    {
+        "name": "F229",
+        "normalProcess": "Validate compression parameters on add/update of the ColumnFamily. When Snappy compression is not available on the platform, trying to enable it introduces problems. I've tried to enable compression for some column families in my cluster using Snappy compression."
+    },
+    {
+        "name": "F230",
+        "normalProcess": "Increase vm.max_map_count in debian packaging. Packaging should increase vm.max_map_count to accommodate leveled compaction."
+    },
+    {
+        "name": "F231",
+        "normalProcess": "Gossiper will never add itself to saved endpoints. Gossiper.addSavedEndpoint should never add itself. Somehow, people are running into a situation where nodes are adding themselves to the persisted ring cache. Since SS is initialized after the Gossiper and calls addSavedEndpoint on it, which inits the nodes with a generation of zero, this ends up with nodes using a generation of zero and thus never being marked as alive."
+    },
+    {
+        "name": "F232",
+        "normalProcess": "Fix regression in HH page size calculation. Hinted Handoff - related OOM. One of our nodes had collected alot of hints for another node, so when the dead node came back and the row mutations were read back from disk, the node died with an OOM-exception (and kept dying after restart, even with increased heap (from 8G to 12G)). The heap dump contained alot of SuperColumns and our application does not use those (but HH does)."
+    },
+    {
+        "name": "F233",
+        "normalProcess": "Retry failed stream on IOException.Streaming retry is no longer performed. changed exception handling when processing incoming stream, but since it wraps all exception into RuntimeException, streaming retry which had been occurred when IOException is thrown no longer works."
+    },
+    {
+        "name": "F234",
+        "normalProcess": "Allow configuring bloom_filter_fp_chance. BloomFilter FP ratio should be configurable or size-restricted some other way. When you have a live dc and purely analytical dc, in many situations you can have less nodes on the analytical side, but end up getting restricted by having the BloomFilters in-memory, even though you have absolutely no use for them. It would be nice if you could reduce this memory requirement by tuning the desired FP ratio, or even just disabling them altogether."
+    },
+    {
+        "name": "F235",
+        "normalProcess": "Attempt hint delivery every ten minutes, or when failure detector notifies us that a node is back up, whichever comes first.  Hint handoff throttle delay default changed to 1ms, from 50. Hints are not replayed unless node was marked down. If B drops a write from A because it is overwhelmed (but not dead), A will hint the write. But it will never get notified that B is back up (since it was never down), so it will never attempt hint delivery."
+    },
+    {
+        "name": "F236",
+        "normalProcess": "Add nodetool setstreamthroughput. make stream throttling configurable at runtime with nodetool."
+    },
+    {
+        "name": "F237",
+        "normalProcess": "Fix assertion when dropping a columnfamily with no sstables. Fatal exception in thread Thread[MigrationStage:1,5,main] (LeveledCompaction)."
+    },
+    {
+        "name": "F238",
+        "normalProcess": "More efficient allocation of small bloom filters. OpenBitSet can allocate more bytes than it needs. changed OpenBitSet to break big long arrays into pages. However, it always allocate full pages, each page being of size 4096 * 8 bytes. This means that we almost always allocate too much bytes, and for a row that has 1 column, the associated row bloom filter allocates 32760 more bytes than it should."
+    },
+    {
+        "name": "F239",
+        "normalProcess": "CLibrary.createHardLinkWithExec() to check for errors. Should check for errors when calling /bin/ln. It looks like cassandra.utils.CLibrary.createHardLinkWithExec() does not check for any errors in the execution of the hard-link-making utility. This could be bad if, for example, the user has put the snapshot directory on a different filesystem from the data directory. The hard linking would fail and the sstable snapshots would not exist, but no error would be reported."
+    },
+    {
+        "name": "F240",
+        "normalProcess": "Avoid creating empty and non cleaned writer during compaction. Temp SSTable and file descriptor leak."
+    },
+    {
+        "name": "F241",
+        "normalProcess": "Stop thrift service in shutdown hook so we can quiesce MessagingService. ThreadPoolExecutor creates threads as non-daemon and will block on shutdown by default. This is most obviously visible in OptionalTasks which should not block shutdown, but often does."
+    },
+    {
+        "name": "F242",
+        "normalProcess": "(CQL) compaction_strategy_options and compression_parameters for CREATE COLUMNFAMILY statement. CQL can't create column with compression or that use leveled compaction. Looking at CreateColumnFamilyStatement.java, it doesn't seem CQL can create compressed column families, nor define a compaction strategy."
+    },
+    {
+        "name": "F243",
+        "normalProcess": "Reset min/max compaction threshold when creating size tiered compaction strategy. Changing compaction strategy from Leveled to SizeTiered logs millions of messages about nothing to compact. When column family compaction strategy is changed from Leveled to SizeTiered and there're Leveled compaction tasks pending, Cassandra starting to flood in logs with thousands per sec messages."
+    },
+    {
+        "name": "F244",
+        "normalProcess": "Don't ignore IOException during compaction. NPE when running upgradesstables."
+    },
+    {
+        "name": "F245",
+        "normalProcess": "Fix assertion error for CF with gc_grace=0. AssertionError in hintedhandoff - 1.0.5."
+    },
+    {
+        "name": "F246",
+        "normalProcess": "Shutdown ParallelCompaction reducer executor after use. Unsustainable Thread Accumulation in ParallelCompactionIterable.Reducer ThreadPoolExecutor."
+    },
+    {
+        "name": "F247",
+        "normalProcess": "Avoid < 0 value for pending tasks in leveled compaction. strange values of pending tasks with compactionstats (below 0)."
+    },
+    {
+        "name": "F248",
+        "normalProcess": "(Hadoop) Support TimeUUID in Pig CassandraStorage. Support TimeUUID in CassandraStorage."
+    },
+    {
+        "name": "F249",
+        "normalProcess": "Check schema is ready before continuing boostrapping. Bootstrapping nodes don't ensure schema is ready before continuing."
+    },
+    {
+        "name": "F250",
+        "normalProcess": "Catch overflows during parsing of chunk_length_kb. parsing of chunk_length_kb silently overflows. Not likely to trigger for real values; I noticed because some other bug caused the chunk length setting to be corrupted somehow and take on some huge value having nothing to do with what I asked for in my schema update (not yet identified why; separate issue)."
+    },
+    {
+        "name": "F251",
+        "normalProcess": "Improve stream protocol mismatch errors. correct and improve stream protocol mismatch error. The message (and code comment) claims it got a newer version despite the fact that the check only determines that it is non-equal. Fix that, and also print the actual version gotten and expected."
+    },
+    {
+        "name": "F252",
+        "normalProcess": "Avoid multiple thread doing HH to the same target. Multiple threads can attempt hint handoff to the same target. HintedHandOffManager attempts to prevent multiple threads sending hints to the same target with the queuedDeliveries set, but the code is buggy. If two handoffs do occur concurrently, the second thread can use an arbitrarily large amount of memory skipping tombstones when it starts paging from the beginning of the hint row, looking for the first live hint. (This is not a problem with a single thread, since it always pages starting with the last-seen hint column name, effectively skipping the tombstones. Then it compacts when it's done."
+    },
+    {
+        "name": "F253",
+        "normalProcess": "Add JMX property for rp_timeout_in_ms. Make rpc_timeout_in_ms into a jmx mbean property."
+    },
+    {
+        "name": "F254",
+        "normalProcess": "Allow DynamicCompositeType to compare component of different types. Do something about DynamicCompositeType."
+    },
+    {
+        "name": "F255",
+        "normalProcess": "Flush non-cfs backed secondary indexes. Flush non-cfs backed secondary indexes along with CF."
+    },
+    {
+        "name": "F256",
+        "normalProcess": "Secondary Indexes should report memory consumption. Secondary index should report it's memory consumption."
+    },
+    {
+        "name": "F257",
+        "normalProcess": "Fix for SelectStatement start/end key are not set correctly when a key alias is involved. SelectStatement start/end key are not set correctly when a key alias is involved."
+    },
+    {
+        "name": "F258",
+        "normalProcess": "Fix CLI `show schema` command insert of an extra comma in column_metadata. Show Schema; inserts an extra comma in column_metadata."
+    },
+    {
+        "name": "F259",
+        "normalProcess": "Avoid logging (harmless) exception when GC takes < 1ms GC can take 0 ms."
+    },
+    {
+        "name": "F260",
+        "normalProcess": "Prevent new nodes from thinking down nodes are up forever. Nodes can get stuck in UP state forever, despite being DOWN."
+    },
+    {
+        "name": "F261",
+        "normalProcess": "Use correct list of replicas for LOCAL_QUORUM reads when read repair is disabled. Adding another datacenter's node results in 0 rows returned on first datacenter."
+    },
+    {
+        "name": "F262",
+        "normalProcess": "Block on flush before compacting hints (may prevent OOM) Once a host has been hinted to, log messages for it repeat every 10 mins even if no hints are delivered."
+    },
+    {
+        "name": "F263",
+        "normalProcess": "Fix race between cleanup and flush on secondary index CFSes. Can't cleanup after I moved a token."
+    },
+    {
+        "name": "F264",
+        "normalProcess": "Avoid including non-queried nodes in rangeslice read repair. Unnecessary ReadRepair request during RangeScan. During reading with Quorum level and replication factor greater then 2, Cassandra sends at least one ReadRepair, even if there is no need to do that."
+    },
+    {
+        "name": "F265",
+        "normalProcess": "Only snapshot CF being compacted for snapshot_before_compaction. snapshot-before-compaction snapshots entire keyspace. Should only snapshot the CF being compacted."
+    },
+    {
+        "name": "F266",
+        "normalProcess": "Log active compactions in StatusLogger. log Compaction Active tasks in StatusLogger instead of n/a. currently StatusLogger log."
+    },
+    {
+        "name": "F267",
+        "normalProcess": "Compute more accurate compaction score per level. [patch] allow compaction score to be a floating pt value. compaction score is computed with integer math, making the need for compaction under reported. Use floating pt math instead."
+    },
+    {
+        "name": "F268",
+        "normalProcess": "Return InvalidRequest when using a keyspace that doesn't exist. cqlsh doesn't error out immediately for use of invalid keyspace."
+    },
+    {
+        "name": "F269",
+        "normalProcess": "Disallow user modification of System keyspace. sstable2json doesn't work for secondary index sstable due to partitioner mismatch. sstable2json doesn't work for secondary index sstable in 1.0.6 while it worked in version 0.8.x."
+    },
+    {
+        "name": "F270",
+        "normalProcess": "Allow using sstable2json on secondary index data. sstable2json doesn't work for secondary index sstable due to partitioner mismatch. sstable2json doesn't work for secondary index sstable in 1.0.6 while it worked in version 0.8.x."
+    },
+    {
+        "name": "F271",
+        "normalProcess": "(cqlsh) add DESCRIBE COLUMNFAMILIES. Add new SHOW command in CQL shell to list column families. add command SHOW COLUMN FAMILIES to list all column families in a current keyspace by name."
+    },
+    {
+        "name": "F272",
+        "normalProcess": "(cqlsh) format blobs correctly and use colors to improve output readability. cqlsh and cassandra-cli show keys differently for data created via stress tool."
+    },
+    {
+        "name": "F273",
+        "normalProcess": "Synchronize BiMap of bootstrapping tokens.InvocationTargetException ConcurrentModificationException at startup."
+    },
+    {
+        "name": "F274",
+        "normalProcess": "Show index options in CLI. It's useful to show actual index options if any on `describe <ks/cf>` or `show keyspaces`, that was already added to `show schema`."
+    },
+    {
+        "name": "F275",
+        "normalProcess": "Add optional socket timeout for streaming. Repair Streaming hangs between multiple regions. Streaming hangs between datacenters, though there might be multiple reasons for this, a simple fix will be to add the Socket timeout so the session can retry."
+    },
+    {
+        "name": "F276",
+        "normalProcess": "Fix truncate not to leave behind non-CFS backed secondary indexes. Truncate leaves behind non-CFS backed secondary indexes. If you setup a CF with a non-cfs backed secondary index then trucate it, nothing happens to the secondary index. we need a hook for CFStore to clean these up."
+    },
+    {
+        "name": "F277",
+        "normalProcess": "Make CLI `show schema` to use output stream directly instead of StringBuilder. Make CLI `show schema` output data into the file as well is display it to user. Primary use-case for `show schema` is to persist current schema to load it later (possibly on the other machines), so if we output it into timestamped file this would make a good bonus in usability."
+    },
+    {
+        "name": "F278",
+        "normalProcess": "Remove the wait on hint future during write. Internal error processing batch_mutate: java.util.ConcurrentModificationException on CounterColumn. Cassandra throws an exception below while performing batch_mutate with counter column insertion mutation to increment column with 1."
+    },
+    {
+        "name": "F279",
+        "normalProcess": "(cqlsh) ignore missing CfDef opts.  ./bin/cqlsh `describe keyspace <keyspace>` command doesn't work when ColumnFamily row_cache_provider wasn't specified."
+    },
+    {
+        "name": "F280",
+        "normalProcess": "(cqlsh) look for cqlshlib relative to realpath . cqlsh is missing cqlshlib (ImportError: No module named cqlshlib). After a clean install of Cassandra, when running cqlsh I get the following erro."
+    },
+    {
+        "name": "F281",
+        "normalProcess": "Fix short read protection. Short read protection is broken. When a read needs to do more than one retry (due to short reads), the originalCount is not preserved by the retry leading to returning more than the requested number of columns."
+    },
+    {
+        "name": "F282",
+        "normalProcess": "Make sure infered and actual schema match . Cassandra inferred schema and actual data don't match."
+    },
+    {
+        "name": "F283",
+        "normalProcess": "Fix NPE during HH delivery. NPE during HH delivery when gossip turned off on target."
+    },
+    {
+        "name": "F284",
+        "normalProcess": "Don't put boostrapping node in 'hibernate' status . Its impossible to removetoken joining down node."
+    },
+    {
+        "name": "F285",
+        "normalProcess": "Hadoop Fix bad validator lookup. [patch] fix bad validator lookup. code looks up an entry in a map by a byte[] even tho the map is keyed by ByteBuffer, add a ByteBuffer.wrap call to the key."
+    },
+    {
+        "name": "F286",
+        "normalProcess": "Fix soft reset in EC2MultiRegionSnitch. FB.broadcastAddress fixes and Soft reset on Ec2MultiRegionSnitch.reconnect. looks like OutboundTcpConnectionPool.reset will clear the queue which might not be ideal for Ec2Multiregion snitch. there is additional cleanup needed for FB.broadCastAddress."
+    },
+    {
+        "name": "F287",
+        "normalProcess": "Don't leave zombie connections with THSHA thrift server. Disablethrift and Enablethrift can leaves behind zombie connections on THSHA server. While doing nodetool disable thrift we disable selecting threads and close them... but the connections are still active."
+    },
+    {
+        "name": "F288",
+        "normalProcess": "(cqlsh) fix deserialization of data. cqlsh: handle situation where data can't be deserialized as expected. When cqlsh tries to deserialize data which doesn't match the expected type (either because the validation type for the column/key alias was changed, or ASSUME has been used), it just fails completely and in most cases won't show any results at all. When there is only one misbehaving value out of a large number, this can be frustrating."
+    },
+    {
+        "name": "F289",
+        "normalProcess": "Fix removetoken force causing an inconsistent state . nodetool removetoken force causes an inconsistent state."
+    },
+    {
+        "name": "F290",
+        "normalProcess": "Fix ahndling of some types with Pig. Pig can't store some types after loading them.  we removed the decompose methods in putNext instead relying on objToBB, however it cannot sufficiently handle all types."
+    },
+    {
+        "name": "F291",
+        "normalProcess": "Don't allow to drop the system keyspace. [patch] don't allow dropping the system keyspace. throw an IRE if user attempts to drop system keyspace."
+    },
+    {
+        "name": "F292",
+        "normalProcess": "Make Pig deletes disabled by default and configurable. Make Pig/CassandraStorage delete functionality disabled by default and configurable. there is a way to delete column with the CassandraStorage loadstorefunc. In practice it is a bad idea to have that enabled by default. A scenario: do an outer join and you don't have a value for something and then you write out to cassandra all of the attributes of that relation."
+    },
+    {
+        "name": "F293",
+        "normalProcess": "(Pig) fix CassandraStorage to use correct comparator in Super ColumnFamily case. CassandraStorage uses comparator for both super column names and sub column names. The CassandraStorage class uses the same comparator for super and sub column names."
+    },
+    {
+        "name": "F294",
+        "normalProcess": "Fix thread safety issues in commitlog replay, primarily affecting systems with many (100s) of CF definitions. Possible livelock during commit log playback. In CommitLog.recover, there seems to be the possibility of concurrent inserts to tablesRecovered (a HashSet) in the Runnables instantiated a bit below (line 323 in 1.0.7)."
+    },
+    {
+        "name": "F295",
+        "normalProcess": "Fix relevant tombstone ignored with super columns. SuperColumn may ignore relevant tombstones. QueryFilter.isRelevant() consider that a super column that is gc-able but contains only non-gcable tombstone is irrelevant (if the tombstone timestmap is greater than the super column timestamp, which is almost implied by the fact that the tombstone are non-gcable while the SC is)."
+    },
+    {
+        "name": "F296",
+        "normalProcess": "Improve index sampling performance. Improve BloomFilter deserialization performance. It seems as though 1.0.7 loads the BloomFilter through a series of reading longs out in a multithreaded process while 0.8.7 reads the entire object."
+    },
+    {
+        "name": "F297",
+        "normalProcess": "Always compact away deleted hints immediately after handoff. HintedHandoff won't compact a single sstable, resulting in repeated log messages."
+    },
+    {
+        "name": "F298",
+        "normalProcess": "Delete hints from dropped ColumnFamilies on handoff instead of erroring out. Hints Should Be Dropped When Missing CFid Implies Deleted ColumnFamily."
+    },
+    {
+        "name": "F299",
+        "normalProcess": "Add CompositeType ref to the CLI doc for create/update column family. Cli should be able to define CompositeType comparators."
+    },
+    {
+        "name": "F300",
+        "normalProcess": "Pig: support Counter ColumnFamilies. Pig CounterColumnFamily support."
+    },
+    {
+        "name": "F301",
+        "normalProcess": "Pig: Composite column support. Composite Column Support for PIG."
+    },
+    {
+        "name": "F302",
+        "normalProcess": "Avoid NPE during repair when a keyspace has no CFs. NullPointerException in org.apache.cassandra.service.AntiEntropyService when repair finds a keyspace with no CFs."
+    },
+    {
+        "name": "F303",
+        "normalProcess": "Fix division-by-zero error on get_slice. Division by zero on get_slice."
+    },
+    {
+        "name": "F304",
+        "normalProcess": "Don't change manifest level for cleanup, scrub, and upgradesstables operations under LeveledCompactionStrategy. nodetool cleanup/scrub/upgradesstables promotes all sstables to next level (LeveledCompaction). nodetool cleanup giving exception."
+    },
+    {
+        "name": "F305",
+        "normalProcess": "Fix race leading to super columns assertion failure. Supercolumn serialization assertion failure."
+    },
+    {
+        "name": "F306",
+        "normalProcess": "Fix NPE on invalid CQL delete command. NPE on invalid CQL DELETE command."
+    },
+    {
+        "name": "F307",
+        "normalProcess": "Allow custom types in CLI's assume command. Issue with cassandra-cli assume command and custom types."
+    },
+    {
+        "name": "F308",
+        "normalProcess": "Fix totalBytes count for parallel compactions. parallel compaction hang (on large rows?). compaction type keyspace column family bytes compacted bytes total progress."
+    },
+    {
+        "name": "F309",
+        "normalProcess": "Fix intermittent NPE in get_slice. Internal error processing get_slice (NullPointerException)."
+    },
+    {
+        "name": "F310",
+        "normalProcess": "Remove unnecessary asserts in native code interfaces. mlockall() returned code is ignored w/o assertions. We log that mlockall() was successful only based on the lack of an assertion failure, so for anyone running w/o -ea we are lying about mlockall() succeeding."
+    },
+    {
+        "name": "F311",
+        "normalProcess": "Validate blank keys in CQL to avoid assertion errors. CQL inserting blank key."
+    },
+    {
+        "name": "F312",
+        "normalProcess": "cqlsh: fix bad decoding of some column names. cqlsh still failing to handle decode errors in some column names.Columns which are expected to be text, but which are not valid utf8, cause cqlsh to display an error and not show any output."
+    },
+    {
+        "name": "F313",
+        "normalProcess": "cqlsh: fix incorrect padding with unicode chars. cqlsh: double wide unicode chars cause incorrect padding in select output."
+    },
+    {
+        "name": "F314",
+        "normalProcess": "Fix EC2 snitch incorrectly reporting region. EC2 snitch incorrectly reports regions. Currently the org.apache.cassandra.locator.Ec2Snitch reports us-west in both the oregon and the california data centers. This is incorrect, since they are different regions."
+    },
+    {
+        "name": "F315",
+        "normalProcess": "Shut down thrift during decommission. decom should shut thrift down. If you decom a node an then try to use it, you get nothing but timeouts. Instead let's just kill thrift so intelligent clients can move along."
+    },
+    {
+        "name": "F316",
+        "normalProcess": "Expose nodetool cfhistograms for 2ndary indexes. Expose nodetool cfhistograms for secondary index CFs."
+    },
+    {
+        "name": "F317",
+        "normalProcess": "Fix ConcurrentModificationException in gossiper. java.util.ConcurrentModificationException in Gossiper."
     }
 ]

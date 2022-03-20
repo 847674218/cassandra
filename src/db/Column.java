@@ -104,11 +104,6 @@ public class Column implements IColumn
         return timestamp;
     }
 
-    public long minTimestamp()
-    {
-        return timestamp;
-    }
-
     public boolean isMarkedForDelete()
     {
         return false;
@@ -120,6 +115,11 @@ public class Column implements IColumn
     }
 
     public long mostRecentLiveChangeAt()
+    {
+        return timestamp;
+    }
+
+    public long mostRecentNonGCableChangeAt(int gcbefore)
     {
         return timestamp;
     }

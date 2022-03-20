@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Ordering;
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,7 @@ public abstract class SSTable
     public static final String COMPONENT_INDEX = Component.Type.PRIMARY_INDEX.repr;
     public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
     public static final String COMPONENT_STATS = Component.Type.STATS.repr;
+    public static final String COMPONENT_DIGEST = Component.Type.DIGEST.repr;
 
     public static final String TEMPFILE_MARKER = "tmp";
 
@@ -191,26 +194,15 @@ public abstract class SSTable
     /**
      * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
      */
-    static Set<Component> componentsFor(final Descriptor desc, final Descriptor.TempState matchState)
+    static Set<Component> componentsFor(final Descriptor desc)
     {
-        final Set<Component> components = new HashSet<Component>();
-        final String sstableFilePrefix = desc.cfname + Component.separator;
-
-        desc.directory.listFiles(new FileFilter()
+        Set<Component> components = Sets.newHashSetWithExpectedSize(Component.TYPES.size());
+        for (Component.Type componentType : Component.TYPES)
         {
-            public boolean accept(File file)
-            {
-                if (file.isDirectory() || !file.getName().startsWith(sstableFilePrefix))
-                    return false;
-
-                Pair<Descriptor, Component> component = tryComponentFromFilename(file.getParentFile(), file.getName());
-
-                if (component != null && component.left.equals(desc) && (matchState.isMatch(component.left)))
-                    components.add(component.right);
-
-                return false;
-            }
-        });
+            Component component = new Component(componentType);
+            if (new File(desc.filenameFor(component)).exists())
+                components.add(component);
+        }
 
         return components;
     }

@@ -35,7 +35,7 @@ public class CompressionParameters
     public final static int DEFAULT_CHUNK_LENGTH = 65536;
 
     public static final String SSTABLE_COMPRESSION = "sstable_compression";
-    public static final String CHUNK_LENGTH = "chunk_length_kb";
+    public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
 
     public final ICompressor sstableCompressor;
     private final Integer chunkLength;
@@ -45,9 +45,9 @@ public class CompressionParameters
     {
         Map<String, String> options = copyOptions(opts);
         String sstableCompressionClass = options.get(SSTABLE_COMPRESSION);
-        String chunkLength = options.get(CHUNK_LENGTH);
+        String chunkLength = options.get(CHUNK_LENGTH_KB);
         options.remove(SSTABLE_COMPRESSION);
-        options.remove(CHUNK_LENGTH);
+        options.remove(CHUNK_LENGTH_KB);
         CompressionParameters cp = new CompressionParameters(sstableCompressionClass, parseChunkLength(chunkLength), options);
         cp.validateChunkLength();
         return cp;
@@ -74,7 +74,6 @@ public class CompressionParameters
     {
         return chunkLength == null ? DEFAULT_CHUNK_LENGTH : chunkLength;
     }
-
 
     private static Class<? extends ICompressor> parseCompressorClass(String className) throws ConfigurationException
     {
@@ -116,7 +115,11 @@ public class CompressionParameters
         }
         catch (InvocationTargetException e)
         {
-            throw new ConfigurationException(compressorClass.getSimpleName() + ".create() throwed an error", e);
+            Throwable cause = e.getCause();
+            throw new ConfigurationException(String.format("%s.create() threw an error: %s",
+                                             compressorClass.getSimpleName(),
+                                             cause == null ? e.getClass().getName() + " " + e.getMessage() : cause.getClass().getName() + " " + cause.getMessage()),
+                                             e);
         }
         catch (ExceptionInInitializerError e)
         {
@@ -137,18 +140,24 @@ public class CompressionParameters
         return compressionOptions;
     }
 
-    private static Integer parseChunkLength(String chLength) throws ConfigurationException
+    /**
+     * Parse the chunk length (in KB) and returns it as bytes.
+     */
+    private static Integer parseChunkLength(String chLengthKB) throws ConfigurationException
     {
-        if (chLength == null)
+        if (chLengthKB == null)
             return null;
 
         try
         {
-            return Integer.parseInt(chLength);
+            int parsed = Integer.parseInt(chLengthKB);
+            if (parsed > Integer.MAX_VALUE / 1024)
+                throw new ConfigurationException("Value of " + CHUNK_LENGTH_KB + " is too large (" + parsed + ")");
+            return 1024 * parsed;
         }
         catch (NumberFormatException e)
         {
-            throw new ConfigurationException("Invalid value for " + CHUNK_LENGTH, e);
+            throw new ConfigurationException("Invalid value for " + CHUNK_LENGTH_KB, e);
         }
     }
 
@@ -161,7 +170,7 @@ public class CompressionParameters
             return; // chunk length not set, this is fine, default will be used
 
         if (chunkLength <= 0)
-            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH);
+            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH_KB);
 
         int c = chunkLength;
         boolean found = false;
@@ -170,7 +179,7 @@ public class CompressionParameters
             if ((c & 0x01) != 0)
             {
                 if (found)
-                    throw new ConfigurationException(CHUNK_LENGTH + " must be a power of 2");
+                    throw new ConfigurationException(CHUNK_LENGTH_KB + " must be a power of 2");
                 else
                     found = true;
             }
@@ -189,7 +198,7 @@ public class CompressionParameters
 
         options.put(new Utf8(SSTABLE_COMPRESSION), new Utf8(sstableCompressor.getClass().getName()));
         if (chunkLength != null)
-            options.put(new Utf8(CHUNK_LENGTH), new Utf8(chunkLength.toString()));
+            options.put(new Utf8(CHUNK_LENGTH_KB), new Utf8(chunkLengthInKB()));
         return options;
     }
 
@@ -201,8 +210,13 @@ public class CompressionParameters
 
         options.put(SSTABLE_COMPRESSION, sstableCompressor.getClass().getName());
         if (chunkLength != null)
-            options.put(CHUNK_LENGTH, chunkLength.toString());
+            options.put(CHUNK_LENGTH_KB, chunkLengthInKB());
         return options;
+    }
+
+    private String chunkLengthInKB()
+    {
+        return String.valueOf(chunkLength() / 1024);
     }
 
     @Override

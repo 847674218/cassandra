@@ -26,6 +26,9 @@ import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Comparator;
 
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -138,20 +141,17 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
         return maxTimestamp;
     }
 
-    public long minTimestamp()
+    public long mostRecentLiveChangeAt()
     {
-        long minTimestamp = getMarkedForDeleteAt();
-        for (IColumn subColumn : getSubColumns())
-            minTimestamp = Math.min(minTimestamp, subColumn.maxTimestamp());
-        return minTimestamp;
+        return mostRecentNonGCableChangeAt(Integer.MAX_VALUE);
     }
 
-    public long mostRecentLiveChangeAt()
+    public long mostRecentNonGCableChangeAt(int gcbefore)
     {
         long max = Long.MIN_VALUE;
         for (IColumn column : getSubColumns())
         {
-            if (!column.isMarkedForDelete() && column.timestamp() > max)
+            if ((!column.isMarkedForDelete() || column.getLocalDeletionTime() >= gcbefore) && column.timestamp() > max)
             {
                 max = column.timestamp();
             }
@@ -304,6 +304,31 @@ public class SuperColumn extends AbstractColumnContainer implements IColumn
             column.validateFields(metadata);
         }
     }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        SuperColumn sc = (SuperColumn)o;
+
+        if (!name.equals(sc.name))
+            return false;
+        if (getMarkedForDeleteAt() != sc.getMarkedForDeleteAt())
+            return false;
+        if (getLocalDeletionTime() != sc.getLocalDeletionTime())
+            return false;
+        return Iterables.elementsEqual(columns, sc.columns);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(name, getMarkedForDeleteAt(), getLocalDeletionTime(), columns);
+    }
 }
 
 class SuperColumnSerializer implements IColumnSerializer
@@ -344,15 +369,15 @@ class SuperColumnSerializer implements IColumnSerializer
 
     public IColumn deserialize(DataInput dis) throws IOException
     {
-        return deserialize(dis, false);
+        return deserialize(dis, IColumnSerializer.Flag.LOCAL);
     }
 
-    public IColumn deserialize(DataInput dis, boolean fromRemote) throws IOException
+    public IColumn deserialize(DataInput dis, IColumnSerializer.Flag flag) throws IOException
     {
-        return deserialize(dis, fromRemote, (int)(System.currentTimeMillis() / 1000));
+        return deserialize(dis, flag, (int)(System.currentTimeMillis() / 1000));
     }
 
-    public IColumn deserialize(DataInput dis, boolean fromRemote, int expireBefore) throws IOException
+    public IColumn deserialize(DataInput dis, IColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
         ByteBuffer name = ByteBufferUtil.readWithShortLength(dis);
         int localDeleteTime = dis.readInt();
@@ -365,12 +390,8 @@ class SuperColumnSerializer implements IColumnSerializer
         /* read the number of columns */
         int size = dis.readInt();
         ColumnSerializer serializer = Column.serializer();
-        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, fromRemote, expireBefore);
+        ColumnSortedMap preSortedMap = new ColumnSortedMap(comparator, serializer, dis, size, flag, expireBefore);
         SuperColumn superColumn = new SuperColumn(name, ThreadSafeSortedColumns.factory().fromSorted(preSortedMap, false));
-        if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
-        {
-            throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
-        }
         superColumn.delete(localDeleteTime, markedForDeleteAt);
         return superColumn;
     }

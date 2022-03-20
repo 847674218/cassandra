@@ -59,7 +59,9 @@ public class CollationController
 
     public ColumnFamily getTopLevelColumns()
     {
-        return filter.filter instanceof NamesQueryFilter && cfs.metadata.getDefaultValidator() != CounterColumnType.instance
+        return filter.filter instanceof NamesQueryFilter
+               && (cfs.metadata.cfType == ColumnFamilyType.Standard || filter.path.superColumnName != null)
+               && cfs.metadata.getDefaultValidator() != CounterColumnType.instance
                ? collectTimeOrderedData()
                : collectAllData();
     }
@@ -95,8 +97,7 @@ public class CollationController
 
             // avoid changing the filter columns of the original filter
             // (reduceNameFilter removes columns that are known to be irrelevant)
-            TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(cfs.metadata.comparator);
-            filterColumns.addAll(((NamesQueryFilter) filter.filter).columns);
+            TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(((NamesQueryFilter) filter.filter).columns);
             QueryFilter reducedFilter = new QueryFilter(filter.key, filter.path, new NamesQueryFilter(filterColumns));
 
             /* add the SSTables on disk */
@@ -149,22 +150,7 @@ public class CollationController
             };
             ColumnFamily returnCF = container.cloneMeShallow();
             filter.collateColumns(returnCF, Collections.singletonList(toCollate), cfs.metadata.comparator, gcBefore);
-
-            // "hoist up" the requested data into a more recent sstable
-            if (sstablesIterated >= cfs.getMinimumCompactionThreshold() && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
-            {
-                RowMutation rm = new RowMutation(cfs.table.name, new Row(filter.key, returnCF));
-                try
-                {
-                    rm.applyUnsafe(); // skipping commitlog is fine since we're just de-fragmenting existing data
-                }
-                catch (IOException e)
-                {
-                    // log and allow the result to be returned
-                    logger.error("Error re-writing read results", e);
-                }
-            }
-
+            
             // Caller is responsible for final removeDeletedCF.  This is important for cacheRow to work correctly:
             return returnCF;
         }
@@ -181,17 +167,18 @@ public class CollationController
      */
     private void reduceNameFilter(QueryFilter filter, ColumnFamily returnCF, long sstableTimestamp)
     {
-        AbstractColumnContainer container = filter.path.superColumnName != null
-                                          ? (SuperColumn) returnCF.getColumn(filter.path.superColumnName)
-                                          : returnCF;
-        if (container == null)
+        AbstractColumnContainer container = filter.path.superColumnName == null
+                                          ? returnCF
+                                          : (SuperColumn) returnCF.getColumn(filter.path.superColumnName);
+        // MIN_VALUE means we don't know any information
+        if (container == null || sstableTimestamp == Long.MIN_VALUE)
             return;
 
         for (Iterator<ByteBuffer> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )
         {
             ByteBuffer filterColumn = iterator.next();
             IColumn column = container.getColumn(filterColumn);
-            if (column != null && column.minTimestamp() > sstableTimestamp)
+            if (column != null && column.timestamp() > sstableTimestamp)
                 iterator.remove();
         }
     }

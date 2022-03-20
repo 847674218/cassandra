@@ -62,7 +62,6 @@ public class SystemTable
     private static final ByteBuffer TOKEN = ByteBufferUtil.bytes("Token");
     private static final ByteBuffer GENERATION = ByteBufferUtil.bytes("Generation");
     private static final ByteBuffer CLUSTERNAME = ByteBufferUtil.bytes("ClusterName");
-    private static final ByteBuffer PARTITIONER = ByteBufferUtil.bytes("Partioner");
     private static final ByteBuffer CURRENT_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("CurrentLocal");
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
@@ -139,6 +138,11 @@ public class SystemTable
      */
     public static synchronized void updateToken(InetAddress ep, Token token)
     {
+        if (ep.equals(FBUtilities.getBroadcastAddress()))
+        {
+            removeToken(token);
+            return;
+        }
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(p.getTokenFactory().toByteArray(token), ByteBuffer.wrap(ep.getAddress()), System.currentTimeMillis()));
@@ -222,7 +226,7 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = QueryFilter.getIdentityFilter(decorate(RING_KEY), new QueryPath(STATUS_CF));
-        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        ColumnFamily cf = ColumnFamilyStore.removeDeleted(table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter), Integer.MAX_VALUE);
         if (cf != null)
         {
             for (IColumn column : cf.getSortedColumns())
@@ -247,7 +251,7 @@ public class SystemTable
      * One of three things will happen if you try to read the system table:
      * 1. files are present and you can read them: great
      * 2. no files are there: great (new node is assumed)
-     * 3. files are present but you can't read them: bad (suspect that the partitioner was changed).
+     * 3. files are present but you can't read them: bad
      * @throws ConfigurationException
      */
     public static void checkHealth() throws ConfigurationException, IOException
@@ -260,28 +264,26 @@ public class SystemTable
         catch (AssertionError err)
         {
             // this happens when a user switches from OPP to RP.
-            ConfigurationException ex = new ConfigurationException("Could not read system table. Did you change partitioners?");
+            ConfigurationException ex = new ConfigurationException("Could not read system table!");
             ex.initCause(err);
             throw ex;
         }
         
         SortedSet<ByteBuffer> cols = new TreeSet<ByteBuffer>(BytesType.instance);
-        cols.add(PARTITIONER);
         cols.add(CLUSTERNAME);
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(LOCATION_KEY), new QueryPath(STATUS_CF), cols);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         
         if (cf == null)
         {
-            // this is either a brand new node (there will be no files), or the partitioner was changed from RP to OPP.
+            // this is a brand new node
             ColumnFamilyStore cfs = table.getColumnFamilyStore(STATUS_CF);
             if (!cfs.getSSTables().isEmpty())
-                throw new ConfigurationException("Found system table files, but they couldn't be loaded. Did you change the partitioner?");
+                throw new ConfigurationException("Found system table files, but they couldn't be loaded!");
 
             // no system files.  this is a new node.
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-            cf.addColumn(new Column(PARTITIONER, ByteBufferUtil.bytes(DatabaseDescriptor.getPartitioner().getClass().getName()), FBUtilities.timestampMicros()));
             cf.addColumn(new Column(CLUSTERNAME, ByteBufferUtil.bytes(DatabaseDescriptor.getClusterName()), FBUtilities.timestampMicros()));
             rm.add(cf);
             rm.apply();
@@ -290,12 +292,8 @@ public class SystemTable
         }
         
         
-        IColumn partitionerCol = cf.getColumn(PARTITIONER);
         IColumn clusterCol = cf.getColumn(CLUSTERNAME);
-        assert partitionerCol != null;
         assert clusterCol != null;
-        if (!DatabaseDescriptor.getPartitioner().getClass().getName().equals(ByteBufferUtil.string(partitionerCol.value())))
-            throw new ConfigurationException("Detected partitioner mismatch! Did you change the partitioner?");
         String savedClusterName = ByteBufferUtil.string(clusterCol.value());
         if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
             throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
@@ -325,8 +323,19 @@ public class SystemTable
         }
         else
         {
-            generation = Math.max(ByteBufferUtil.toInt(cf.getColumn(GENERATION).value()) + 1,
-                                  (int) (System.currentTimeMillis() / 1000));
+            // Other nodes will ignore gossip messages about a node that have a lower generation than previously seen.
+            final int storedGeneration = ByteBufferUtil.toInt(cf.getColumn(GENERATION).value()) + 1;
+            final int now = (int) (System.currentTimeMillis() / 1000);
+            if (storedGeneration >= now)
+            {
+                logger.warn("Using stored Gossip Generation {} as it is greater than current system time {}.  See CASSANDRA-3654 if you experience problems",
+                            storedGeneration, now);
+                generation = storedGeneration;
+            }
+            else
+            {
+                generation = now;
+            }
         }
 
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
@@ -376,7 +385,7 @@ public class SystemTable
         QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
                                                         new QueryPath(INDEX_CF),
                                                         ByteBufferUtil.bytes(indexName));
-        return cfs.getColumnFamily(filter) != null;
+        return ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(filter), Integer.MAX_VALUE) != null;
     }
 
     public static void setIndexBuilt(String table, String indexName)

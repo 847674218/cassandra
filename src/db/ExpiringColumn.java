@@ -25,6 +25,7 @@ import java.security.MessageDigest;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -60,9 +61,9 @@ public class ExpiringColumn extends Column
     }
 
     /** @return Either a DeletedColumn, or an ExpiringColumn. */
-    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore)
+    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, IColumnSerializer.Flag flag)
     {
-        if (localExpirationTime >= expireBefore)
+        if (localExpirationTime >= expireBefore || flag == IColumnSerializer.Flag.PRESERVE_SIZE)
             return new ExpiringColumn(name, value, timestamp, timeToLive, localExpirationTime);
         // the column is now expired, we can safely return a simple tombstone
         return new DeletedColumn(name, localExpirationTime, timestamp);
@@ -76,6 +77,18 @@ public class ExpiringColumn extends Column
     @Override
     public boolean isMarkedForDelete()
     {
+        /*
+         * For compaction, we need to ensure that at all time if
+         * localExpirationTime < gcbefore, then isMarkedForDelete() == true
+         * (otherwise LCR may expire columns between it's two phases compaction -- see #3579).
+         *
+         * Since during compaction we know that at all time, gcbefore <= now
+         * (the = is important in case where gc_grace=0), it follows that to
+         * ensure the propery above we need for isMarkedForDelete to be
+         * now > localExpirationTime (*not* now >= localExpiration). For the
+         * same reason, compaction should consider a column tomstoned if
+         * getLocalDeletionTime() < gcbefore, *not* if getLocalDeletionTime() <= gcbefore.
+         */
         return (int) (System.currentTimeMillis() / 1000 ) > localExpirationTime;
     }
 

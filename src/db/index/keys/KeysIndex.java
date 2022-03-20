@@ -109,8 +109,7 @@ public class KeysIndex extends PerColumnSecondaryIndex
 
     public void removeIndex(ByteBuffer columnName) throws IOException
     {        
-        indexCfs.removeAllSSTables();
-        indexCfs.unregisterMBean();
+        indexCfs.invalidate();
     }
 
     public void forceBlockingFlush() throws IOException
@@ -129,9 +128,14 @@ public class KeysIndex extends PerColumnSecondaryIndex
         }
     }
 
-    public void unregisterMbean()
+    public void invalidate()
     {
-        indexCfs.unregisterMBean();
+        indexCfs.invalidate();
+    }
+
+    public void truncate(long truncatedAt)
+    {
+        indexCfs.discardSSTables(truncatedAt);
     }
 
     public ColumnFamilyStore getIndexCfs()
@@ -149,13 +153,13 @@ public class KeysIndex extends PerColumnSecondaryIndex
         return indexCfs.columnFamily;
     }
 
-    public void renameIndex(String newCfName) throws IOException
-    {
-        indexCfs.renameSSTables(indexCfs.columnFamily.replace(baseCfs.columnFamily, newCfName));
-    }
-
     public void validateOptions() throws ConfigurationException
     {
         // no options used
+    }
+
+    public long getLiveSize()
+    {
+        return indexCfs.getMemtableDataSize();
     }
 }

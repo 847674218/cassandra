@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -587,7 +588,7 @@ public class ThriftValidation
                     if (cf_def.key_alias.equals(columnDef.name))
                         throw new InvalidRequestException("Invalid column name: "
                                                           + AsciiType.instance.compose(cf_def.key_alias)
-                                                          + ", because it equals to the key_alias.");
+                                                          + ", because it equals the key_alias");
                 }
             }
 
@@ -653,6 +654,9 @@ public class ThriftValidation
                 }
             }
             validateMinMaxCompactionThresholds(cf_def);
+
+            // validates compression parameters
+            CompressionParameters.create(cf_def.compression_options);
         }
         catch (ConfigurationException e)
         {
@@ -728,7 +732,15 @@ public class ThriftValidation
         for (String ksName : Schema.instance.getTables())
         {
             if (ksName.equalsIgnoreCase(newKsName))
-                throw new InvalidRequestException("Keyspace names must be case-insensitively unique");
+                throw new InvalidRequestException(String.format("Keyspace names must be case-insensitively unique (\"%s\" conflicts with \"%s\")",
+                                                                newKsName,
+                                                                ksName));
         }
+    }
+
+    public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws InvalidRequestException
+    {
+        if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_TABLE))
+            throw new InvalidRequestException("system keyspace is not user-modifiable");
     }
 }

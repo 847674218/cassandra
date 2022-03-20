@@ -20,7 +20,6 @@ package org.apache.cassandra.thrift;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -49,10 +48,6 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.migration.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -61,7 +56,6 @@ import org.apache.cassandra.service.SocketSessionManagementService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
@@ -140,6 +134,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e) 
         {
+            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -455,7 +450,10 @@ public class CassandraServer implements Cassandra.Iface
             totalCount += columns.size();
             requestedCount -= columns.size();
             ColumnOrSuperColumn lastColumn = columns.get(columns.size() - 1);
-            ByteBuffer lastName = lastColumn.isSetSuper_column() ? lastColumn.super_column.name : lastColumn.column.name;
+            ByteBuffer lastName =
+                    lastColumn.isSetSuper_column() ? lastColumn.super_column.name :
+                        (lastColumn.isSetColumn() ? lastColumn.column.name :
+                            (lastColumn.isSetCounter_column() ? lastColumn.counter_column.name : lastColumn.counter_super_column.name));
             if ((requestedCount == 0) || ((columns.size() == 1) && (lastName.equals(predicate.slice_range.start))))
             {
                 break;
@@ -647,6 +645,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
             throw new TimedOutException();
         }
     }
@@ -705,6 +704,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
         	throw new TimedOutException();
         }
         catch (IOException e)
@@ -751,6 +751,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
             throw new TimedOutException();
         }
         return thriftifyKeySlices(rows, column_parent, column_predicate);
@@ -788,41 +789,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<TokenRange> describe_ring(String keyspace)throws InvalidRequestException
     {
-        if (keyspace == null || !Schema.instance.getNonSystemTables().contains(keyspace))
-            throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
-
-        List<TokenRange> ranges = new ArrayList<TokenRange>();
-        Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
-
-        for (Map.Entry<Range, List<InetAddress>> entry : StorageService.instance.getRangeToAddressMap(keyspace).entrySet())
-        {
-            Range range = entry.getKey();
-            List<String> endpoints = new ArrayList<String>();
-            List<String> rpc_endpoints = new ArrayList<String>();
-            List<EndpointDetails> epDetails = new ArrayList<EndpointDetails>();
-
-            for (InetAddress endpoint : entry.getValue())
-            {
-                EndpointState eps = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                EndpointDetails details = new EndpointDetails();
-
-                details.host = endpoint.getHostAddress();
-                details.datacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-                details.rack = DatabaseDescriptor.getEndpointSnitch().getRack(endpoint);
-
-                endpoints.add(details.host);
-                rpc_endpoints.add(StorageService.instance.getRpcaddress(endpoint));
-
-                epDetails.add(details);
-            }
-
-            TokenRange tr = new TokenRange(tf.toString(range.left), tf.toString(range.right), endpoints)
-                            .setEndpoint_details(epDetails)
-                            .setRpc_endpoints(rpc_endpoints);
-            ranges.add(tr);
-        }
-
-        return ranges;
+        return StorageService.instance.describeRing(keyspace);
     }
 
     public String describe_partitioner() throws TException
@@ -958,6 +925,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("add_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         ThriftValidation.validateKeyspaceNotYetExisting(ks_def.name);
@@ -1004,6 +972,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("drop_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(keyspace);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         validateSchemaAgreement();
         
@@ -1032,6 +1001,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
         logger.debug("update_keyspace");
+        ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
         state().hasKeyspaceSchemaAccess(Permission.WRITE);
         ThriftValidation.validateTable(ks_def.name);
         if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
@@ -1130,6 +1100,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         catch (TimeoutException e)
         {
+            logger.debug("... timed out");
             throw (UnavailableException) new UnavailableException().initCause(e);
         }
         catch (IOException e)

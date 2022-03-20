@@ -184,6 +184,8 @@ public interface ColumnFamilyStoreMBean
 
     public double getRecentBloomFilterFalseRatio();
 
+    public long getBloomFilterDiskSpaceUsed();
+
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off
      */
@@ -205,6 +207,17 @@ public interface ColumnFamilyStoreMBean
     public void setMaximumCompactionThreshold(int threshold);
 
     /**
+     * Sets the compaction strategy by class name
+     * @param className the name of the compaction strategy class
+     */
+    public void setCompactionStrategyClass(String className) throws ConfigurationException;
+
+    /**
+     * Gets the compaction strategy class name
+     */
+    public String getCompactionStrategyClass();
+
+    /**
      * Disable automatic compaction.
      */
     public void disableAutoCompaction();
@@ -213,6 +226,7 @@ public interface ColumnFamilyStoreMBean
 
     public long[] getEstimatedRowSizeHistogram();
     public long[] getEstimatedColumnCountHistogram();
+    public double getCompressionRatio();
 
     /**
      * Returns a list of the names of the built column indexes for current store

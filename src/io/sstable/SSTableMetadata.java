@@ -20,7 +20,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.BufferedInputStream;
-import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.File;
@@ -31,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -42,6 +40,8 @@ import org.apache.cassandra.utils.EstimatedHistogram;
  *  - estimated column count histogram
  *  - replay position
  *  - max column timestamp
+ *  - compression ratio
+ *  - partitioner
  *
  * An SSTableMetadata should be instantiated via the Collector, openFromDescriptor()
  * or createDefaultInstance()
@@ -49,29 +49,34 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 public class SSTableMetadata
 {
     private static Logger logger = LoggerFactory.getLogger(SSTableMetadata.class);
-    protected final EstimatedHistogram estimatedRowSize;
-    protected final EstimatedHistogram estimatedColumnCount;
-    protected final ReplayPosition replayPosition;
-    protected final long maxTimestamp;
+
     public static final SSTableMetadataSerializer serializer = new SSTableMetadataSerializer();
+
+    public final EstimatedHistogram estimatedRowSize;
+    public final EstimatedHistogram estimatedColumnCount;
+    public final ReplayPosition replayPosition;
+    public final long maxTimestamp;
+    public final double compressionRatio;
+    public final String partitioner;
 
     private SSTableMetadata()
     {
-        this(defaultRowSizeHistogram(), defaultColumnCountHistogram(), ReplayPosition.NONE);
+        this(defaultRowSizeHistogram(),
+             defaultColumnCountHistogram(),
+             ReplayPosition.NONE,
+             Long.MIN_VALUE,
+             Double.MIN_VALUE,
+             null);
     }
 
-    // when there is no max timestamp recorded, default to max long
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition)
-    {
-        this(rowSizes, columnCounts, replayPosition, Long.MAX_VALUE);
-    }
-
-    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp)
+    private SSTableMetadata(EstimatedHistogram rowSizes, EstimatedHistogram columnCounts, ReplayPosition replayPosition, long maxTimestamp, double cr, String partitioner)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
         this.replayPosition = replayPosition;
         this.maxTimestamp = maxTimestamp;
+        this.compressionRatio = cr;
+        this.partitioner = partitioner;
     }
 
     public static SSTableMetadata createDefaultInstance()
@@ -82,26 +87,6 @@ public class SSTableMetadata
     public static Collector createCollector()
     {
         return new Collector();
-    }
-
-    public EstimatedHistogram getEstimatedRowSize()
-    {
-        return estimatedRowSize;
-    }
-
-    public EstimatedHistogram getEstimatedColumnCount()
-    {
-        return estimatedColumnCount;
-    }
-
-    public ReplayPosition getReplayPosition()
-    {
-        return replayPosition;
-    }
-
-    public long getMaxTimestamp()
-    {
-        return maxTimestamp;
     }
 
     static EstimatedHistogram defaultColumnCountHistogram()
@@ -118,18 +103,11 @@ public class SSTableMetadata
 
     public static class Collector
     {
-        protected EstimatedHistogram estimatedRowSize;
-        protected EstimatedHistogram estimatedColumnCount;
-        protected ReplayPosition replayPosition;
-        protected long maxTimestamp;
-
-        private Collector()
-        {
-            this.estimatedRowSize = defaultRowSizeHistogram();
-            this.estimatedColumnCount = defaultColumnCountHistogram();
-            this.replayPosition = ReplayPosition.NONE;
-            this.maxTimestamp = Long.MIN_VALUE;
-        }
+        protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
+        protected EstimatedHistogram estimatedColumnCount = defaultColumnCountHistogram();
+        protected ReplayPosition replayPosition = ReplayPosition.NONE;
+        protected long maxTimestamp = Long.MIN_VALUE;
+        protected double compressionRatio = Double.MIN_VALUE;
 
         public void addRowSize(long rowSize)
         {
@@ -141,14 +119,28 @@ public class SSTableMetadata
             estimatedColumnCount.add(columnCount);
         }
 
+        /**
+         * Ratio is compressed/uncompressed and it is
+         * if you have 1.x then compression isn't helping 
+         */
+        public void addCompressionRatio(long compressed, long uncompressed)
+        {
+            compressionRatio = (double) compressed/uncompressed;
+        }
+        
         public void updateMaxTimestamp(long potentialMax)
         {
             maxTimestamp = Math.max(maxTimestamp, potentialMax);
         }
 
-        public SSTableMetadata finalizeMetadata()
+        public SSTableMetadata finalizeMetadata(String partitioner)
         {
-            return new SSTableMetadata(estimatedRowSize, estimatedColumnCount, replayPosition, maxTimestamp);
+            return new SSTableMetadata(estimatedRowSize,
+                                       estimatedColumnCount,
+                                       replayPosition,
+                                       maxTimestamp,
+                                       compressionRatio,
+                                       partitioner);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -170,20 +162,25 @@ public class SSTableMetadata
         }
     }
 
-    public static class SSTableMetadataSerializer implements ISerializer<SSTableMetadata>
+    public static class SSTableMetadataSerializer
     {
         private static final Logger logger = LoggerFactory.getLogger(SSTableMetadataSerializer.class);
 
         public void serialize(SSTableMetadata sstableStats, DataOutput dos) throws IOException
         {
-            EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedRowSize(), dos);
-            EstimatedHistogram.serializer.serialize(sstableStats.getEstimatedColumnCount(), dos);
-            ReplayPosition.serializer.serialize(sstableStats.getReplayPosition(), dos);
-            dos.writeLong(sstableStats.getMaxTimestamp());
+            assert sstableStats.partitioner != null;
+
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, dos);
+            EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, dos);
+            ReplayPosition.serializer.serialize(sstableStats.replayPosition, dos);
+            dos.writeLong(sstableStats.maxTimestamp);
+            dos.writeDouble(sstableStats.compressionRatio);
+            dos.writeUTF(sstableStats.partitioner);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
         {
+            logger.debug("Load metadata for {}", descriptor);
             File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
             if (!statsFile.exists())
             {
@@ -191,22 +188,10 @@ public class SSTableMetadata
                 return new SSTableMetadata();
             }
 
-            DataInputStream dis = null;
+            DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
             try
             {
-                logger.debug("Load metadata for {}", descriptor);
-                dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
-
-                if (!descriptor.usesHistogramAndReplayPositionStatsFile)
-                  return deserialize(dis);
-
-                EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
-                EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-                ReplayPosition replayPosition = descriptor.hasReplayPosition()
-                                              ? ReplayPosition.serializer.deserialize(dis)
-                                              : ReplayPosition.NONE;
-
-                return new SSTableMetadata(rowSizes, columnCounts, replayPosition);
+                return deserialize(dis, descriptor);
             }
             finally
             {
@@ -214,18 +199,19 @@ public class SSTableMetadata
             }
         }
 
-        public SSTableMetadata deserialize(DataInput dis) throws IOException
+        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
-            ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(dis);
-            long maxTimestamp = dis.readLong();
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp);
-        }
-
-        public long serializedSize(SSTableMetadata object)
-        {
-            throw new UnsupportedOperationException();
+            ReplayPosition replayPosition = desc.metadataIncludesReplayPosition
+                                          ? ReplayPosition.serializer.deserialize(dis)
+                                          : ReplayPosition.NONE;
+            long maxTimestamp = desc.tracksMaxTimestamp ? dis.readLong() : Long.MIN_VALUE;
+            double compressionRatio = desc.hasCompressionRatio
+                                    ? dis.readDouble()
+                                    : Double.MIN_VALUE;
+            String partitioner = desc.hasPartitioner ? dis.readUTF() : null;
+            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, maxTimestamp, compressionRatio, partitioner);
         }
     }
 }

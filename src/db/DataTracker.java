@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -222,31 +223,45 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
     }
 
-    public void markCompacted(Collection<SSTableReader> sstables)
+    public void markCompacted(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
+        notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
     {
         replace(sstables, replacements);
+        notifySSTablesChanged(sstables, replacements, compactionType);
+    }
+
+    public void addInitialSSTables(Collection<SSTableReader> sstables)
+    {
+        replace(Collections.<SSTableReader>emptyList(), sstables);
+        // no notifications or backup necessary
     }
 
     public void addSSTables(Collection<SSTableReader> sstables)
     {
         replace(Collections.<SSTableReader>emptyList(), sstables);
-    }
-
-    public void addStreamedSSTable(SSTableReader sstable)
-    {
-        addSSTables(Arrays.asList(sstable));
-        incrementallyBackup(sstable);
-        notifyAdded(sstable);
+        for (SSTableReader sstable : sstables)
+        {
+            incrementallyBackup(sstable);
+            notifyAdded(sstable);
+        }
     }
 
     public void removeAllSSTables()
     {
-        replace(getSSTables(), Collections.<SSTableReader>emptyList());
+        List<SSTableReader> sstables = getSSTables();
+        if (sstables.isEmpty())
+        {
+            // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
+            return;
+        }
+
+        replace(sstables, Collections.<SSTableReader>emptyList());
+        notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), OperationType.UNKNOWN);
     }
 
     /** (Re)initializes the tracker, purging all references. */
@@ -272,7 +287,6 @@ public class DataTracker
         addNewSSTablesSize(replacements);
         removeOldSSTablesSize(oldSSTables);
 
-        notifySSTablesChanged(replacements, oldSSTables);
         cfstore.updateCacheSizes();
     }
 
@@ -298,9 +312,9 @@ public class DataTracker
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
                             sstable.descriptor, cfstore.table.name, cfstore.getColumnFamilyName()));
+            liveSize.addAndGet(-sstable.bytesOnDisk());
             sstable.markCompacted();
             sstable.releaseReference();
-            liveSize.addAndGet(-sstable.bytesOnDisk());
         }
     }
 
@@ -362,6 +376,21 @@ public class DataTracker
         }
 
         return histogram;
+    }
+
+    public double getCompressionRatio()
+    {
+        double sum = 0;
+        int total = 0;
+        for (SSTableReader sstable : getSSTables())
+        {
+            if (sstable.getCompressionRatio() != Double.MIN_VALUE)
+            {
+                sum += sstable.getCompressionRatio();
+                total++;
+            }
+        }
+        return total != 0 ? (double)sum/total: 0;
     }
 
     public long getMinRowSize()
@@ -458,11 +487,11 @@ public class DataTracker
         return (double) falseCount / (trueCount + falseCount);
     }
 
-    public void notifySSTablesChanged(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
+    public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added, OperationType compactionType)
     {
         for (INotificationConsumer subscriber : subscribers)
         {
-            INotification notification = new SSTableListChangedNotification(added, removed);
+            INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
             subscriber.handleNotification(notification, this);
         }
     }

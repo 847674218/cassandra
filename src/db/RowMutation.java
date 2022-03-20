@@ -31,6 +31,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.Message;
@@ -111,7 +112,7 @@ public class RowMutation implements IMutation, MessageProducer
      * The format is the following:
      *
      * HintsColumnFamily: {        // cf
-     *   <dest ip>: {              // key
+     *   <dest token>: {           // key
      *     <uuid>: {               // super-column
      *       table: <table>        // columns
      *       key: <key>
@@ -262,10 +263,10 @@ public class RowMutation implements IMutation, MessageProducer
 
     public Message getMessage(Integer version) throws IOException
     {
-        return makeRowMutationMessage(StorageService.Verb.MUTATION, version);
+        return getMessage(StorageService.Verb.MUTATION, version);
     }
 
-    public Message makeRowMutationMessage(StorageService.Verb verb, int version) throws IOException
+    public Message getMessage(StorageService.Verb verb, int version) throws IOException
     {
         return new Message(FBUtilities.getBroadcastAddress(), verb, getSerializedBuffer(version), version);
     }
@@ -388,7 +389,7 @@ public class RowMutation implements IMutation, MessageProducer
             }
         }
 
-        public RowMutation deserialize(DataInput dis, int version, boolean fromRemote) throws IOException
+        public RowMutation deserialize(DataInput dis, int version, IColumnSerializer.Flag flag) throws IOException
         {
             String table = dis.readUTF();
             ByteBuffer key = ByteBufferUtil.readWithShortLength(dis);
@@ -397,7 +398,7 @@ public class RowMutation implements IMutation, MessageProducer
             for (int i = 0; i < size; ++i)
             {
                 Integer cfid = Integer.valueOf(dis.readInt());
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, fromRemote, ThreadSafeSortedColumns.factory());
+                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis, flag, ThreadSafeSortedColumns.factory());
                 modifications.put(cfid, cf);
             }
             return new RowMutation(table, key, modifications);
@@ -405,7 +406,7 @@ public class RowMutation implements IMutation, MessageProducer
 
         public RowMutation deserialize(DataInput dis, int version) throws IOException
         {
-            return deserialize(dis, version, true);
+            return deserialize(dis, version, IColumnSerializer.Flag.FROM_REMOTE);
         }
 
         public long serializedSize(RowMutation rm, int version)

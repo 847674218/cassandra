@@ -239,34 +239,14 @@ public class SecondaryIndexManager
     }
 
     /**
-     * Remove all index MBeans
+     * Remove the index
      */
-    public void unregisterMBeans()
+    public void invalidate()
     {
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().unregisterMbean();
+            entry.getValue().invalidate();
     }
-    
-    /**
-     * Remove all underlying index data
-     * @throws IOException 
-     */
-    public void removeAllIndexes() throws IOException
-    {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().removeIndex(entry.getKey());
-    }
-    
-    /**
-     * Rename all underlying index files
-     * @param newCfName the new index Name
-     */
-    public void renameIndexes(String newCfName) throws IOException
-    {
-        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
-            entry.getValue().renameIndex(newCfName);
-    }
-    
+
     /**
      * Flush all indexes to disk
      * @throws ExecutionException
@@ -328,7 +308,62 @@ public class SecondaryIndexManager
         return cfsList;
     }
         
-   
+    /**
+     * @return all indexes which do *not* use a backing CFS internally
+     */
+    public Collection<SecondaryIndex> getIndexesNotBackedByCfs()
+    {
+        // we use identity map because per row indexes use same instance
+        // across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getValue().getIndexCfs();
+            
+            if (cfs == null)
+                indexList.put(entry.getValue(), null);        
+        }
+        
+        return indexList.keySet();
+    }
+
+    /**
+     * @return all of the secondary indexes without distinction to the (non-)backed by secondary ColumnFamilyStore.
+     */
+    public Collection<SecondaryIndex> getIndexes()
+    {
+        // we use identity map because per row indexes use same instance across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+            indexList.put(entry.getValue(), null);
+
+        return indexList.keySet();
+    }
+
+    /**
+     * @return total current ram size of all indexes
+     */
+    public long getTotalLiveSize()
+    {
+        long total = 0;
+        
+        // we use identity map because per row indexes use same instance
+        // across many columns
+        IdentityHashMap<SecondaryIndex, Object> indexList = new IdentityHashMap<SecondaryIndex, Object>();
+
+        for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
+        {
+            SecondaryIndex index = entry.getValue();
+            
+            if (indexList.put(index, index) == null)
+                total += index.getLiveSize();
+        }
+        
+        return total;
+    }
+    
     /**
      * Removes obsolete index entries and creates new ones for the given row key
      * and mutated columns.

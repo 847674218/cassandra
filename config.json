@@ -3,7 +3,7 @@
     "requirementDescription": "F22",
     "type": "CLASS",
     "fullyQualifiedName": "RetriedSliceFromReadCommand.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
@@ -228,7 +228,7 @@
     "type": "CLASS",
     "fullyQualifiedName": "Context.java",
     "isNewTraceLink": false,
-    "isDeleted": false
+    "isDeleted": true
   },
   {
     "requirementDescription": "F6",

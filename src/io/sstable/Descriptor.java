@@ -40,6 +40,14 @@ import static org.apache.cassandra.io.sstable.Component.separator;
  */
 public class Descriptor
 {
+    // versions are denoted as [major][minor].  Minor versions must be forward-compatible:
+    // new fields are allowed in e.g. the metadata component, but fields can't be removed
+    // or have their size changed.
+    //
+    // Minor versions were introduced with version "hb" for Cassandra 1.0.3; prior to that,
+    // we always incremented the major version.  In particular, versions g and h are
+    // forwards-compatible with version f, so if the above convention had been followed,
+    // we would have labeled them fb and fc.
     public static final String LEGACY_VERSION = "a"; // "pre-history"
     // b (0.7.0): added version to sstable filenames
     // c (0.7.0): bloom filter component computes hashes over raw key bytes instead of strings
@@ -48,9 +56,12 @@ public class Descriptor
     // f (0.7.0): switched bloom filter implementations in data component
     // g (0.8): tracks flushed-at context in metadata component
     // h (1.0): tracks max client timestamp in metadata component
-    public static final String CURRENT_VERSION = "h";
+    // hb (1.0.3): records compression ration in metadata component
+    // hc (1.0.4): records partitioner in metadata component
+    public static final String CURRENT_VERSION = "hc";
 
     public final File directory;
+    /** version has the following format: <code>[a-z]+</code> */
     public final String version;
     public final String ksname;
     public final String cfname;
@@ -63,22 +74,10 @@ public class Descriptor
     public final boolean hasEncodedKeys;
     public final boolean isLatestVersion;
     public final boolean usesOldBloomFilter;
-    public final boolean usesHistogramAndReplayPositionStatsFile;
-
-    public enum TempState
-    {
-        LIVE,
-        TEMP,
-        ANY;
-
-        boolean isMatch(Descriptor descriptor)
-        {
-            assert descriptor != null;
-            if (TempState.ANY == this)
-                return true;
-            return (TempState.TEMP == this) ? descriptor.temporary : !descriptor.temporary;
-        }
-    }
+    public final boolean metadataIncludesReplayPosition;
+    public final boolean tracksMaxTimestamp;
+    public final boolean hasCompressionRatio;
+    public final boolean hasPartitioner;
 
     /**
      * A descriptor that assumes CURRENT_VERSION.
@@ -103,13 +102,11 @@ public class Descriptor
         hasIntRowSize = version.compareTo("d") < 0;
         hasEncodedKeys = version.compareTo("e") < 0;
         usesOldBloomFilter = version.compareTo("f") < 0;
-        usesHistogramAndReplayPositionStatsFile = version.compareTo("h") < 0;
+        metadataIncludesReplayPosition = version.compareTo("g") >= 0;
+        tracksMaxTimestamp = version.compareTo("h") >= 0;
+        hasCompressionRatio = version.compareTo("hb") >= 0;
+        hasPartitioner = version.compareTo("hc") >= 0;
         isLatestVersion = version.compareTo(CURRENT_VERSION) == 0;
-    }
-
-    public boolean hasReplayPosition()
-    {
-        return version.compareTo("g") >= 0;
     }
 
     public String filenameFor(Component component)
@@ -245,21 +242,34 @@ public class Descriptor
 
     /**
      * @param ver SSTable version
-     * @return True if the given version string is not empty, and
-     * contains all lowercase letters, as defined by java.lang.Character.
+     * @return True if the given version string matches the format.
+     * @see #version
      */
     static boolean versionValidate(String ver)
     {
-        if (ver.length() < 1) return false;
-        for (char ch : ver.toCharArray())
-            if (!Character.isLetter(ch) || !Character.isLowerCase(ch))
-                return false;
-        return true;
+        return ver != null && ver.matches("[a-z]+");
     }
 
-    public boolean isFromTheFuture()
+    /**
+     * @return true if the current Cassandra version can read the given sstable version
+     */
+    public boolean isCompatible()
     {
-        return version.compareTo(CURRENT_VERSION) > 0;
+        return version.charAt(0) <= CURRENT_VERSION.charAt(0);
+    }
+
+    /**
+     * @return true if the current Cassandra version can stream the given sstable version
+     * from another node.  This is stricter than opening it locally [isCompatible] because
+     * streaming needs to rebuild all the non-data components, and it only knows how to write
+     * the latest version.
+     */
+    public boolean isStreamCompatible()
+    {
+        // we could add compatibility for earlier versions with the new single-pass streaming
+        // (see SSTableWriter.appendFromStream) but versions earlier than 0.7.1 don't have the
+        // MessagingService version awareness anyway so there's no point.
+        return isCompatible() && version.charAt(0) >= 'f';
     }
 
     @Override

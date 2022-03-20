@@ -29,7 +29,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,7 +40,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -69,11 +67,11 @@ public class Table
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
-     * Table.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
+     * CFS.maybeSwitchMemtable should aquire the writeLock; see that method for the full explanation.
      *
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */
-    static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
+    public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
 
     // It is possible to call Table.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -343,7 +341,6 @@ public class Table
             return;
         
         unloadCf(cfs);
-        cfs.removeAllSSTables();
     }
     
     // disassociate a cfs from this table instance.
@@ -361,7 +358,7 @@ public class Table
         {
             throw new IOException(e);
         }
-        cfs.unregisterMBean();
+        cfs.invalidate();
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */
@@ -559,7 +556,12 @@ public class Table
 
     public String getDataFileLocation(long expectedSize)
     {
-        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
+        return getDataFileLocation(expectedSize, true);
+    }
+
+    public String getDataFileLocation(long expectedSize, boolean ensureFreeSpace)
+    {
+        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
          && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
@@ -577,7 +579,7 @@ public class Table
             {
                 throw new AssertionError(e);
             }
-            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize);
+            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedSize, ensureFreeSpace);
         }
         return path;
     }

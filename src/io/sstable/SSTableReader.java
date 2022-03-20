@@ -30,7 +30,10 @@ import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.index.keys.KeysIndex;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,14 +111,30 @@ public class SSTableReader extends SSTable
         return count;
     }
 
-    public static SSTableReader open(Descriptor desc) throws IOException
+    public static SSTableReader open(Descriptor descriptor) throws IOException
     {
-        return open(desc, Schema.instance.getCFMetaData(desc.ksname, desc.cfname));
+        CFMetaData metadata;
+        if (descriptor.cfname.contains("."))
+        {
+            int i = descriptor.cfname.indexOf(".");
+            String parentName = descriptor.cfname.substring(0, i);
+            CFMetaData parent = Schema.instance.getCFMetaData(descriptor.ksname, parentName);
+            ColumnDefinition def = parent.getColumnDefinitionForIndex(descriptor.cfname.substring(i + 1));
+            metadata = CFMetaData.newIndexMetadata(parent, def, KeysIndex.indexComparator());
+        }
+        else
+        {
+            metadata = Schema.instance.getCFMetaData(descriptor.ksname, descriptor.cfname);
+        }
+        return open(descriptor, metadata);
     }
 
     public static SSTableReader open(Descriptor desc, CFMetaData metadata) throws IOException
     {
-        return open(desc, componentsFor(desc, Descriptor.TempState.LIVE), metadata, StorageService.getPartitioner());
+        IPartitioner p = desc.cfname.contains(".")
+                       ? new LocalPartitioner(metadata.getKeyValidator())
+                       : StorageService.getPartitioner();
+        return open(desc, componentsFor(desc), metadata, p);
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
@@ -136,6 +155,14 @@ public class SSTableReader extends SSTable
         SSTableMetadata sstableMetadata = components.contains(Component.STATS)
                                         ? SSTableMetadata.serializer.deserialize(descriptor)
                                         : SSTableMetadata.createDefaultInstance();
+
+        // Check if sstable is created using same partitioner.
+        // Partitioner can be null, which indicates older version of sstable or no stats available.
+        // In that case, we skip the check.
+        String partitionerName = partitioner.getClass().getCanonicalName();
+        if (sstableMetadata.partitioner != null && !partitionerName.equals(sstableMetadata.partitioner))
+            throw new RuntimeException(String.format("Cannot open %s because partitioner does not match %s",
+                                                     descriptor, partitionerName));
 
         SSTableReader sstable = new SSTableReader(descriptor,
                                                   components,
@@ -337,23 +364,28 @@ public class SSTableReader extends SSTable
                 if (indexPosition == indexSize)
                     break;
 
-                ByteBuffer key = null, skippedKey;
-                skippedKey = ByteBufferUtil.readWithShortLength(input);
+                DecoratedKey decoratedKey = null;
+                int len = ByteBufferUtil.readShortLength(input);
 
+                boolean firstKey = left == null;
+                boolean lastKey = indexPosition + DBConstants.shortSize + len + DBConstants.longSize == indexSize;
                 boolean shouldAddEntry = indexSummary.shouldAddEntry();
-                if (shouldAddEntry || cacheLoading || recreatebloom)
+                if (shouldAddEntry || cacheLoading || recreatebloom || firstKey || lastKey)
                 {
-                    key = skippedKey;
+                    decoratedKey = decodeKey(partitioner, descriptor, ByteBufferUtil.read(input, len));
+                    if (firstKey)
+                        left = decoratedKey;
+                    if (lastKey)
+                        right = decoratedKey;
+                }
+                else
+                {
+                    FileUtils.skipBytesFully(input, len);
                 }
 
-                if(null == left)
-                    left = decodeKey(partitioner, descriptor, skippedKey);
-                right = decodeKey(partitioner, descriptor, skippedKey);
-
                 long dataPosition = input.readLong();
-                if (key != null)
+                if (decoratedKey != null)
                 {
-                    DecoratedKey decoratedKey = decodeKey(partitioner, descriptor, key);
                     if (recreatebloom)
                         bf.add(decoratedKey.key);
                     if (shouldAddEntry)
@@ -423,6 +455,14 @@ public class SSTableReader extends SSTable
     public Filter getBloomFilter()
     {
       return bf;
+    }
+
+    public long getBloomFilterSerializedSize()
+    {
+        if (descriptor.usesOldBloomFilter)
+            return LegacyBloomFilter.serializer().serializedSize((LegacyBloomFilter) bf);
+        else
+            return BloomFilter.serializer().serializedSize((BloomFilter) bf);
     }
 
     /**
@@ -886,22 +926,27 @@ public class SSTableReader extends SSTable
 
     public EstimatedHistogram getEstimatedRowSize()
     {
-        return sstableMetadata.getEstimatedRowSize();
+        return sstableMetadata.estimatedRowSize;
     }
 
     public EstimatedHistogram getEstimatedColumnCount()
     {
-        return sstableMetadata.getEstimatedColumnCount();
+        return sstableMetadata.estimatedColumnCount;
+    }
+
+    public double getCompressionRatio()
+    {
+        return sstableMetadata.compressionRatio;
     }
 
     public ReplayPosition getReplayPosition()
     {
-        return sstableMetadata.getReplayPosition();
+        return sstableMetadata.replayPosition;
     }
 
     public long getMaxTimestamp()
     {
-        return sstableMetadata.getMaxTimestamp();
+        return sstableMetadata.maxTimestamp;
     }
 
     public RandomAccessReader openDataReader(boolean skipIOCache) throws IOException

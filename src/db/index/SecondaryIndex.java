@@ -112,6 +112,11 @@ public abstract class SecondaryIndex
     public abstract void forceBlockingFlush() throws IOException;
 
     /**
+     * Get current amount of memory this index is consuming (in bytes)
+     */
+    public abstract long getLiveSize();
+    
+    /**
      * Allow access to the underlying column family store if there is one
      * @return the underlying column family store or null
      */
@@ -123,19 +128,18 @@ public abstract class SecondaryIndex
      * @param columnName the indexed column to remove
      */
     public abstract void removeIndex(ByteBuffer columnName) throws IOException;
-    
+
     /**
-     * Renames the underlying index files to reflect the new CF name
-     * @param newCfName new column family name.
-     * @throws IOException on any I/O error.
+     * Remove the index and unregisters this index's mbean if one exists
      */
-    public abstract void renameIndex(String newCfName) throws IOException;
-    
+    public abstract void invalidate();
+
     /**
-     * Unregisters this index's mbean if one exists
+     * Truncate all the data from the current index
+     *
+     * @param truncatedAt The truncation timestamp, all data before that timestamp should be rejected.
      */
-    public abstract void unregisterMbean();
-    
+    public abstract void truncate(long truncatedAt);
     
     /**
      * Builds the index using the data in the underlying CFS

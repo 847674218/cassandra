@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 
+import org.apache.cassandra.io.IColumnSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -44,6 +45,11 @@ public class Row
         this.cf = cf;
     }
 
+    public int getLiveColumnCount()
+    {
+        return cf == null ? 0 : cf.getLiveColumnCount();
+    }
+
     @Override
     public String toString()
     {
@@ -61,15 +67,15 @@ public class Row
             ColumnFamily.serializer().serialize(row.cf, dos);
         }
 
-        public Row deserialize(DataInput dis, int version, boolean fromRemote, ISortedColumns.Factory factory) throws IOException
+        public Row deserialize(DataInput dis, int version, IColumnSerializer.Flag flag, ISortedColumns.Factory factory) throws IOException
         {
             return new Row(StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(dis)),
-                           ColumnFamily.serializer().deserialize(dis, fromRemote, factory));
+                           ColumnFamily.serializer().deserialize(dis, flag, factory));
         }
 
         public Row deserialize(DataInput dis, int version) throws IOException
         {
-            return deserialize(dis, version, false, ThreadSafeSortedColumns.factory());
+            return deserialize(dis, version, IColumnSerializer.Flag.LOCAL, ThreadSafeSortedColumns.factory());
         }
 
         public long serializedSize(Row row, int version)

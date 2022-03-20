@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.columniterator.IColumnIterator;
 import org.apache.cassandra.db.columniterator.SimpleAbstractColumnIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -40,6 +41,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SlabAllocator;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.github.jamm.MemoryMeter;
@@ -56,7 +58,12 @@ public class Memtable
     // we're careful to only allow one count to run at a time because counting is slow
     // (can be minutes, for a large memtable and a busy server), so we could keep memtables
     // alive after they're flushed and would otherwise be GC'd.
-    private static final ExecutorService meterExecutor = new ThreadPoolExecutor(1, 1, Integer.MAX_VALUE, TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>())
+    private static final ExecutorService meterExecutor = new DebuggableThreadPoolExecutor(1,
+                                                                                          1,
+                                                                                          Integer.MAX_VALUE,
+                                                                                          TimeUnit.MILLISECONDS,
+                                                                                          new SynchronousQueue<Runnable>(),
+                                                                                          new NamedThreadFactory("MemoryMeter"))
     {
         @Override
         protected void afterExecute(Runnable r, Throwable t)
@@ -76,12 +83,14 @@ public class Memtable
 
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     public final ColumnFamilyStore cfs;
+    private final long creationTime;
 
     private SlabAllocator allocator = new SlabAllocator();
 
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
+        this.creationTime = System.currentTimeMillis();
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
         {
@@ -266,9 +275,10 @@ public class Memtable
 
             ssTable = writer.closeAndOpenReader();
         }
-        finally
+        catch (Exception e)
         {
-            writer.cleanupIfNecessary();
+            writer.abort();
+            throw FBUtilities.unchecked(e);
         }
         logger.info(String.format("Completed flushing %s (%d bytes)",
                                   ssTable.getFilename(), new File(ssTable.getFilename()).length()));
@@ -407,5 +417,10 @@ public class Memtable
     void clearUnsafe()
     {
         columnFamilies.clear();
+    }
+
+    public long creationTime()
+    {
+        return creationTime;
     }
 }
