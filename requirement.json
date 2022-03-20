@@ -1,0 +1,194 @@
+[
+    {
+        "name": "F1",
+        "normalProcess": "An authenticator handles the authentication challenge/response cycles of a single connection."
+    },
+    {
+        "name": "F2",
+        "normalProcess": "Cassandra includes integrated caching and distributes cache data around the cluster."
+    },
+    {
+        "name": "F3",
+        "normalProcess": "Cassandra provides a built-inow cacheor super-fast access to frequently requested data, competitive with standalone caching products."
+    },
+    {
+        "name": "F4",
+        "normalProcess": "Since Cassandra provides a durable database behind the cache, it can save your cache to disk periodically and read the contents back in when it restarts, so you never have to start with a cold cache."
+    },
+    {
+        "name": "F5",
+        "normalProcess": "The Cassandra Command Line Interface, CLI, client utility can be used to do basic data definition (DDL) and data manipulation (DML) within a Cassandra cluster."
+    },
+    {
+        "name": "F6",
+        "normalProcess": "Executes a sequence of (statement, parameters) tuples concurrently."
+    },
+    {
+        "name": "F7",
+        "normalProcess": "Cassandra exposes a number of statistics and management operations via Java Management Extensions (JMX). Java Management Extensions (JMX) is a Java technology that supplies tools for managing and monitoring Java applications and services. During normal operation, Cassandra outputs information and statistics that you can monitor using JMX-compliant toolsAny statistic or operation that a Java application has exposed as an MBean can then be monitored or manipulated using JMX."
+    },
+    {
+        "name": "F8",
+        "normalProcess": "In Cassandra, you define column families. Column families can (and should) define metadata about the columns, but the actual columns that make up a row are determined by the client application. Each row can have a different set of columns."
+    },
+    {
+        "name": "F9",
+        "normalProcess": "Node-to-node encryption protects data transferred between nodes, including gossip communication, in a cluster using SSL (Secure Sockets Layer)."
+    },
+    {
+        "name": "F10",
+        "normalProcess": "The keyspace is the container for your application data, similar to a schema in a relational database. Keyspaces are used to group column families together. Typically, a cluster has one keyspace per application."
+    },
+    {
+        "name": "F11",
+        "normalProcess": "Replication is the process of storing copies of data on multiple nodes to ensure reliability and fault tolerance.To determine the physical location of nodes and their proximity to each other, the replication strategy also relies on the cluster-configured snitch, which is described below."
+    },
+    {
+        "name": "F12",
+        "normalProcess": "Cassandra Query Language (CQL)."
+    },
+    {
+        "name": "F13",
+        "normalProcess": "A BATCH statement combines multiple data modification (DML) CQL statements into a single logical operation. BATCH supports setting a client-supplied, global consistency level and timestamp that is used for each of the operations included in the batch."
+    },
+    {
+        "name": "F14",
+        "normalProcess": "Developers can access CQL commands in a variety of ways such as JDBC-based client programs."
+    },
+    {
+        "name": "F15",
+        "normalProcess": "A counter is a special kind of column used to store a number that incrementally counts the occurrences of a particular event or process. For example, you might use a counter column to count the number of times a page is viewed. Counter columns are different from regular columns in that once a counter is defined, the client application then updates the column value by incrementing (or decrementing) it."
+    },
+    {
+        "name": "F16",
+        "normalProcess": "A column can also have an optional expiration date called TTL (time to live). Whenever a column is inserted, the client request can specify an optional TTL value, defined in seconds, for the column."
+    },
+    {
+        "name": "F17",
+        "normalProcess": "A Cassandra column family can contain either regular columns or super columns, which adds another level of nesting to the regular column family structure. Super columns are comprised of a (super) column name and an ordered map of sub-columns. A super column can specify a comparator on both the super column name as well as on the sub-column names."
+    },
+    {
+        "name": "F18",
+        "normalProcess": "Hinted handoff is an optional feature of Cassandra that reduces the time to restore a failed node to consistency once the failed node returns to the cluster. It can also be used for absolute write availability for applications that cannot tolerate a failed write, but can tolerate inconsistent reads"
+    },
+    {
+        "name": "F19",
+        "normalProcess": "Cassandra supports row mutation."
+    },
+    {
+        "name": "F20",
+        "normalProcess": "Cassandra writes are first written to the燙ommitLog, and then to a per-ColumnFamily structure called a Memtable. A Memtable is basically a write-back cache of data rows that can be looked up by key -- that is, unlike a write-through cache, writes are batched up in the Memtable until it is full, when it is flushed."
+    },
+    {
+        "name": "F21",
+        "normalProcess": "When thresholds are reached, Cassandra periodically flushes in-memory data structures (memtables) to SSTable data files for persistent storage of column family data."
+    },
+    {
+        "name": "F22",
+        "normalProcess": "Most applications can be designed with a data model that supports ordered queries as slices over a set of columns rather than range scans over a set of rows."
+    },
+    {
+        "name": "F23",
+        "normalProcess": "When a Memtable is full, Cassandra writes to disk as an SSTable. SSTable - sorted string table, key/value storage sorted by keys. SSTable is on-disk data structure and is always immutable."
+    },
+    {
+        "name": "F24",
+        "normalProcess": "A TRUNCATE statement results in the immediate, irreversible removal of all data in the named column family."
+    },
+    {
+        "name": "F25",
+        "normalProcess": "Marshal defines Cassandra operations for persistence of complex Haskell data objects with custom-selected but implicitly performed serialization."
+    },
+    {
+        "name": "F26",
+        "normalProcess": "In the background, Cassandra periodically merges SSTables together into larger SSTables using a process called compaction. Compaction merges row fragments together, removes expired tombstones (deleted columns), and rebuilds primary and secondary indexes."
+    },
+    {
+        "name": "F27",
+        "normalProcess": "Adds WHERE arguments to the queryset, returning a new queryset and Returns a QuerySet filtered on the keyword arguments."
+    },
+    {
+        "name": "F28",
+        "normalProcess": "Unlike almost every other configuration choice in Cassandra, the partitioner cannot be changed without reloading all of your data. Therefore, it is important to choose and configure the correct partitioner before initializing your cluster."
+    },
+    {
+        "name": "F29",
+        "normalProcess": "The RandomPartitioner is the default partitioning strategy for a Cassandra cluster, and in almost all cases is the right choice. The RandomPartitioner uses consistent hashing to determine which node stores which row."
+    },
+    {
+        "name": "F30",
+        "normalProcess": "Assumes keys are UTF8 strings. Not recommended both because of this limitation and because globally ordering all your partitions generates hot spots: some partitions close together will get more activity than others, and the node hosting those will be overloaded relative to others."
+    },
+    {
+        "name": "F31",
+        "normalProcess": "Cassandra provides the ByteOrderedPartitioner forordered partitioning. This partitioner orders rows lexically by key bytes. An order-preserving partitioner that operates on partition key bytes lexicographically."
+    },
+    {
+        "name": "F32",
+        "normalProcess": "Failure detection is a method for locally determining, from gossip state, if another node in the system is up or down. Failure detection information is also used by Cassandra to avoid routing client requests to unreachable nodes whenever possible."
+    },
+    {
+        "name": "F33",
+        "normalProcess": "The gossip process tracks heartbeats from other nodes both directly (nodes gossiping directly to it) and indirectly (nodes heard about secondhand, thirdhand, and so on)Gossip is a peer-to-peer communication protocol in which nodes periodically exchange state information about themselves and about other nodes they know about. The gossip process runs every second and exchanges state messages with up to three other nodes in the cluster. The nodes exchange information about themselves and about the other nodes that they have gossiped about, so all nodes quickly learn about all other nodes in the cluster. A gossip message has a version associated with it, so that during a gossip exchange, older information is overwritten with the most current state for a particular node. Cassandra uses a protocol called gossip to discover location and state information about the other nodes participating in a Cassandra cluster."
+    },
+    {
+        "name": "F34",
+        "normalProcess": "allows you to read data stored in Cassandra from a Hadoop MapReduce job, and its companion class and  to write the results back into Cassandra."
+    },
+    {
+        "name": "F35",
+        "normalProcess": "Cassandra 1.0 introduces support for data compression on a per-ColumnFamily basis, one of the most-requested features since the project started. Compression maximizes the storage capacity of your Cassandra nodes by reducing the volume of data on disk."
+    },
+    {
+        "name": "F36",
+        "normalProcess": "A snitch maps IPs to racks and data centers. It defines how the nodes are grouped together within the overall network topology.  A snitch determines which data centers and racks nodes belong to. Snitches inform Cassandra about the network topology so that requests are routed efficiently and allows Cassandra to distribute replicas by grouping machines into data centers and racks."
+    },
+    {
+        "name": "F37",
+        "normalProcess": "By default, all snitches also use a dynamic snitch layer that monitors read latency and, when possible, routes requests away from poorly-performing nodes. The dynamic snitch is enabled by default and is recommended for use in most deployments."
+    },
+    {
+        "name": "F38",
+        "normalProcess": "The SimpleSnitch (the default) does not recognize data center or rack information. Use it for single-data center deployments (or single-zone in public clouds)."
+    },
+    {
+        "name": "F39",
+        "normalProcess": "The RackInferringSnitch determines the location of nodes by rack and data center, which are assumed to correspond to the 3rd and 2nd octet of the node's IP address, respectively. Use this snitch as an example of writing a custom Snitch class."
+    },
+    {
+        "name": "F40",
+        "normalProcess": "This snitch uses a user-defined description of the network details located in the assandra-topology.propertiesfile. Use this snitch when your node IPs are not uniform or if you have complex replication grouping requirements. When using this snitch, you can define your data center names to be whatever you want."
+    },
+    {
+        "name": "F41",
+        "normalProcess": "Use the Ec2Snitch for simple cluster deployments on Amazon EC2 where all nodes in the cluster are within a single region. The region is treated as the data center and the availability zones are treated as racks within the data center."
+    },
+    {
+        "name": "F42",
+        "normalProcess": "Use the EC2MultiRegionSnitch for deployments on Amazon EC2 where the cluster spans multiple regions. As with the Ec2Snitch, regions are treated as data centers and availability zones are treated as racks within a data center."
+    },
+    {
+        "name": "F43",
+        "normalProcess": "A new connection between nodes will either stream or message, determining the connection type."
+    },
+    {
+        "name": "F44",
+        "normalProcess": "All ports in cassandra are TCP."
+    },
+    {
+        "name": "F45",
+        "normalProcess": "Cassandra uses one thread-per-client for remote procedure calls. For a large number of client connections, this can cause excessive memory usage for the thread stack. cassandra defines a scheduler to handle incoming client requests according to a defined policy. This scheduler only applies to client requests, not inter-node communication."
+    },
+    {
+        "name": "F46",
+        "normalProcess": "Cassandra has A Factory for providing and setting up Client and Server SSL wrapped Socket and ServerSocket."
+    },
+    {
+        "name": "F47",
+        "normalProcess": "In cassandrathe Thrift interface is a legacy API for older clients. Thrift is an interface definition language and binary communication protocol that is used to define and create services for numerous languages. It is used as a remote procedure call (RPC) framework."
+    },
+    {
+        "name": "F48",
+        "normalProcess": "Streaming is a component which handles data (part of SSTable file) exchange among nodes in the cluster. When you bootstrap a new node, it gets data from existing nodes using streaming."
+    }
+]
