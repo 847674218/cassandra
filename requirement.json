@@ -2006,5 +2006,97 @@
     {
         "name": "F502",
         "normalProcess": "Fix estimated row cache entry size. Estimated Row Cache Entry size incorrect (always 24?)."
+    },
+    {
+        "name": "F503",
+        "normalProcess": "Reset getRangeSlice filter after finishing a row for get_paged_slice. StorageProxy.getRangeSlice sometimes returns incorrect number of columns."
+    },
+    {
+        "name": "F504",
+        "normalProcess": "Fix temporarily missing schema after upgrade from pre-1.1.5. Upgraded cassandra loses all cfs on restart."
+    },
+    {
+        "name": "F505",
+        "normalProcess": "Reduce log spam from invalid counter shards. Reduce log spam from counter shard warnings."
+    },
+    {
+        "name": "F506",
+        "normalProcess": "Improve schema propagation performance. Schema push/pull race."
+    },
+    {
+        "name": "F507",
+        "normalProcess": "Fall back to old describe_splits if d_s_ex is not available. CFRR wide row iterators improvements."
+    },
+    {
+        "name": "F508",
+        "normalProcess": "Improve error reporting when streaming ranges fail. RangeStreamer has no way to report failures, allowing bootstrap/move etc to complete without data."
+    },
+    {
+        "name": "F509",
+        "normalProcess": "cqlsh: fix timestamp formatting on some platforms. cqlsh doesn't show correct timezone when SELECTing a column of type TIMESTAMP."
+    },
+    {
+        "name": "F510",
+        "normalProcess": "Fix ALTER TABLE overriding compression options with defaults. After changing the compaction strategy, compression_strategy always returning back to the SnappyCompressor through CQL 2.2.0. Compression params validation assumes SnappyCompressor."
+    },
+    {
+        "name": "F511",
+        "normalProcess": "Avoid error opening data file on startup. error opening data file at startup."
+    },
+    {
+        "name": "F512",
+        "normalProcess": "Fix wrong index_options in cli 'show schema'. show schema command in cassandra-cli generates wrong index_options values."
+    },
+    {
+        "name": "F513",
+        "normalProcess": "Allow overriding number of available processor. Allow property override of available processors value."
+    },
+    {
+        "name": "F514",
+        "normalProcess": "Simplify CompressedRandomAccessReader to work around JDK FD bug. Major compaction IOException in 1.1.8."
+    },
+    {
+        "name": "F515",
+        "normalProcess": "Improve handling a changing target throttle rate mid-compaction. Changing from higher to lower compaction throughput causes long (multi hour) pause in large compactions."
+    },
+    {
+        "name": "F516",
+        "normalProcess": "Fix multithreaded compaction deadlock. HintsColumnFamily compactions hang when using multithreaded compaction."
+    },
+    {
+        "name": "F517",
+        "normalProcess": "Fix specifying and altering crc_check_chance. not possible to change crc_check_chance."
+    },
+    {
+        "name": "F518",
+        "normalProcess": "Don't expire columns sooner than they should in 2ndary indexes. Compaction deletes ExpiringColumns in Secondary Indexes."
+    },
+    {
+        "name": "F519",
+        "normalProcess": "Pig: correctly decode row keys in widerow mode. CassandraStorage doesn't decode name in widerow mode."
+    },
+    {
+        "name": "F520",
+        "normalProcess": "Nodetool repair command now prints progress. Need some indication of node repair success or failure."
+    },
+    {
+        "name": "F521",
+        "normalProcess": "Fix user defined compaction to run against 1.1 data directory. user defined compaction is broken."
+    },
+    {
+        "name": "F522",
+        "normalProcess": "Fix CQL3 BATCH authorization caching. CQL3 BATCH authorization caching bug."
+    },
+    {
+        "name": "F523",
+        "normalProcess": "Fix get_count returns incorrect value with TTL. Since 1.1, get_count sometimes returns value smaller than actual column count."
+    },
+    {
+        "name": "F524",
+        "normalProcess": "Better handling for amid compaction failure. Make sure SSTables left over from compaction get deleted and logged."
+    },
+    {
+        "name": "F525",
+        "normalProcess": "Calculate pending ranges asynchronously. calculatePendingRanges could be asynchronous."
     }
 ]

@@ -1,30 +1,37 @@
 [
   {
+    "requirementDescription": "F36",
+    "type": "CLASS",
+    "fullyQualifiedName": "PendingRangeCalculatorService.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
     "requirementDescription": "F27",
     "type": "CLASS",
     "fullyQualifiedName": "IColumnIteratorFactory.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F8",
     "type": "CLASS",
     "fullyQualifiedName": "LazyColumnIterator.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "UseStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "CQLStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
@@ -35,31 +42,10 @@
     "isDeleted": false
   },
   {
-    "requirementDescription": "F1",
-    "type": "CLASS",
-    "fullyQualifiedName": "IAuthorityContainer.java",
-    "isNewTraceLink": true,
-    "isDeleted": false
-  },
-  {
     "requirementDescription": "F10",
     "type": "CLASS",
     "fullyQualifiedName": "KSPropDefs.java",
     "isNewTraceLink": false,
-    "isDeleted": false
-  },
-  {
-    "requirementDescription": "F12",
-    "type": "CLASS",
-    "fullyQualifiedName": "ListGrantsStatement.java",
-    "isNewTraceLink": true,
-    "isDeleted": false
-  },
-  {
-    "requirementDescription": "F12",
-    "type": "CLASS",
-    "fullyQualifiedName": "RevokeStatement.java",
-    "isNewTraceLink": true,
     "isDeleted": false
   },
   {
