@@ -318,5 +318,61 @@
     {
         "name": "80",
         "normalProcess": "Evict gossip state immediately when a token is taken over by a new IP. Replace token leaves the old node state in tact causing problems in cli. in the replace token patch we dont evict the node from the Gossip which will leave the node lingering around and causes issues in cli (UNReachable nodes) As a part of the replace token if the token is replaced with another token we should remove the old nodes Gossip states."
+    },
+    {
+        "name": "81",
+        "normalProcess": "Close scrubbed sstable fd before deleting it. Unable to delete after running scrub. Another problem with sstable deletions on 1.0. Running scrub produces lot of unable to delete messages on windows."
+    },
+    {
+        "name": "82",
+        "normalProcess": "Fix bug preventing obsolete commitlog segments from being removed. possible early deletion of commit logs. I ran my cluster for about 2 days. the cluster has 2 nodes. I restarted one box several times, and the other one was always running. the one always running ended up accumulating 100GB of commit logs."
+    },
+    {
+        "name": "83",
+        "normalProcess": "Tolerate whitespace in seed CDL. Whitespace in SimpleSeedProvider string makes seed ignored. If a seeds given to SimpleSeedProvider contains whitespace, the seed will be ignored."
+    },
+    {
+        "name": "84",
+        "normalProcess": "Change default heap thresholds to max(min(1/2 ram, 1G), min(1/4 ram, 8GB)). reduce default heap size. With off-heap caching now the default and with auto-flushed memtables demonstrated to do a good job with smaller heaps, I think it's time to reduce heap sizes to decrease GC pause times."
+    },
+    {
+        "name": "85",
+        "normalProcess": "Fix broken CompressedRandomAccessReaderTest. CompressedRandomAccessReaderTest fails on Windows."
+    },
+    {
+        "name": "86",
+        "normalProcess": "(CQL) fix type information returned for wildcard queries. cqlsh: Error running select * vs select all columns"
+    },
+    {
+        "name": "87",
+        "normalProcess": "Add estimated tasks to LeveledCompactionStrategy. add estimated tasks to LeveledCompactionStrategy."
+    },
+    {
+        "name": "88",
+        "normalProcess": "Avoid including compaction cache-warming in keycache stats. Compaction degrades key cache stats. When compaction_preheat_key_cache is set to true, then during compaction, it keep tracks of cached keys to to re-cache their new position. It does this by calling the following method on every key of the compacted sstable : sstable.getCachedPosition(row.key) which also update cache stats, thus lowering hit rate."
+    },
+    {
+        "name": "89",
+        "normalProcess": "Run compaction and hinted handoff threads at MIN_PRIORITY. Add compaction_thread_priority back. This turns out to be false in the majority of deployments. In many (if not most) situations, compaction is actually CPU bound, not IO bound, so multithreaded compaction is generally helpful, but the priority needs to be lowered in order to prevent it from stealing CPU used for reads/writes."
+    },
+    {
+        "name": "90",
+        "normalProcess": "Default hsha thrift server to cpu core count in rpc pool. make HSHA the default Thrift server. HSHA has been an option since 0.8.3."
+    },
+    {
+        "name": "91",
+        "normalProcess": "Add bin daemon to binary tarball for Windows service. Apache Daemon missing from the binary tarball. Apparently the tools used to run the binary release are missing from the binary tarball. I will verify that they are in the 1.0 branch, then update the ticket so we can ensure that they are included."
+    },
+    {
+        "name": "92",
+        "normalProcess": "Fix places where uncompressed size of sstables was use in place of the compressed one. Uncompressed sizes are used to estimate space for compaction of compressed sstables. We are using the uncompressed data size when estimating if we have enough to compact sstables. This means we can easily refuse compaction when there is clearly enough room to compact."
+    },
+    {
+        "name": "93",
+        "normalProcess": "Fix hsha thrift server. HsHa broken at startup."
+    },
+    {
+        "name": "94",
+        "normalProcess": "Make sure repair only stream needed sstables. Repair still streams unnecessary sstables. unfortunately got committed with the use of the wrong streaming method, the one that stream all the sstables of the keyspace."
     }
 ]

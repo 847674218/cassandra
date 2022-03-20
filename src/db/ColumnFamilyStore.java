@@ -714,7 +714,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (clean)
         {
-            logger.debug("forceFlush requested but everything is clean");
+            logger.debug("forceFlush requested but everything is clean in {}", columnFamily);
             return null;
         }
 
@@ -915,7 +915,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long expectedFileSize = 0;
         for (SSTableReader sstable : sstables)
         {
-            long size = sstable.length();
+            long size = sstable.onDiskLength();
             expectedFileSize = expectedFileSize + size;
         }
         return expectedFileSize;
@@ -930,9 +930,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SSTableReader maxFile = null;
         for (SSTableReader sstable : sstables)
         {
-            if (sstable.length() > maxSize)
+            if (sstable.onDiskLength() > maxSize)
             {
-                maxSize = sstable.length();
+                maxSize = sstable.onDiskLength();
                 maxFile = sstable;
             }
         }
@@ -1593,7 +1593,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future to the delete operation. Call the future's get() to make
      * sure the column family has been deleted
      */
-    public Future<?> truncate() throws IOException
+    public Future<?> truncate() throws IOException, ExecutionException, InterruptedException
     {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
@@ -1611,11 +1611,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         //
         // Bonus bonus: simply forceFlush of all the CF is not enough, because if
         // for a given column family the memtable is clean, forceFlush will return
-        // immediately, even though there could be a memtable being flush at the same
-        // time.  So to guarantee that all segments can be cleaned out, we need
+        // immediately, even though there could be a memtable being flushed at the same
+        // time.  So to guarantee that all segments can be cleaned out, we need to
         // "waitForActiveFlushes" after the new segment has been created.
+        logger.debug("truncating {}", columnFamily);
+        // flush the CF being truncated before forcing the new segment
+        forceBlockingFlush();
         CommitLog.instance.forceNewSegment();
         ReplayPosition position = CommitLog.instance.getContext();
+        // now flush everyone else.  re-flushing ourselves is not necessary, but harmless
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
             cfs.forceFlush();
         waitForActiveFlushes();
@@ -1687,9 +1691,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     @Override
     public String toString()
     {
-        return "ColumnFamilyStore(" +
-               "table='" + table.name + '\'' +
-               ", columnFamily='" + columnFamily + '\'' +
+        return "CFS(" +
+               "Keyspace='" + table.name + '\'' +
+               ", ColumnFamily='" + columnFamily + '\'' +
                ')';
     }
 
