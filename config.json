@@ -1,191 +1,212 @@
 [
   {
+    "requirementDescription": "F26",
+    "type": "CLASS",
+    "fullyQualifiedName": "EstimatedHistogram.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F26",
+    "type": "CLASS",
+    "fullyQualifiedName": "Scrubber.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
+    "requirementDescription": "F4",
+    "type": "CLASS",
+    "fullyQualifiedName": "StatusLogger.java",
+    "isNewTraceLink": true,
+    "isDeleted": false
+  },
+  {
     "requirementDescription": "F28",
     "type": "CLASS",
     "fullyQualifiedName": "AbstractPartitioner.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F48",
     "type": "CLASS",
     "fullyQualifiedName": "AbstractStreamSession.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F8",
     "type": "CLASS",
     "fullyQualifiedName": "AbstractThreadUnsafeSortedColumns.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F8",
     "type": "CLASS",
     "fullyQualifiedName": "AtomicSortedColumns.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F34",
     "type": "CLASS",
     "fullyQualifiedName": "BulkOutputFormat.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F4",
     "type": "CLASS",
     "fullyQualifiedName": "CacheService.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F4",
     "type": "CLASS",
     "fullyQualifiedName": "CacheServiceMBean.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F8",
     "type": "CLASS",
     "fullyQualifiedName": "CFPropDefs.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "CFStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F26",
     "type": "CLASS",
     "fullyQualifiedName": "CompactionInterruptedException.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "DropColumnFamilyStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F28",
     "type": "CLASS",
     "fullyQualifiedName": "ExcludingBounds.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F40",
     "type": "CLASS",
     "fullyQualifiedName": "GossipingPropertyFileSnitch.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F43",
     "type": "CLASS",
     "fullyQualifiedName": "GossipShutdownVerbHandler.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F26",
     "type": "CLASS",
     "fullyQualifiedName": "ICompactionScanner.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F28",
     "type": "CLASS",
     "fullyQualifiedName": "IncludingExcludingBounds.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F4",
     "type": "CLASS",
     "fullyQualifiedName": "IRowCacheEntry.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F23",
     "type": "CLASS",
     "fullyQualifiedName": "KeyCacheKey.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F19",
     "type": "CLASS",
     "fullyQualifiedName": "MigrationRequestVerbHandler.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F13",
     "type": "CLASS",
     "fullyQualifiedName": "ModificationStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "ParsedStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F28",
     "type": "CLASS",
     "fullyQualifiedName": "RangeStreamer.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F1",
     "type": "CLASS",
     "fullyQualifiedName": "RequestType.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F28",
     "type": "CLASS",
     "fullyQualifiedName": "RingPosition.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F4",
     "type": "CLASS",
     "fullyQualifiedName": "RowCacheKey.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F12",
     "type": "CLASS",
     "fullyQualifiedName": "UseStatement.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
     "requirementDescription": "F4",
     "type": "CLASS",
     "fullyQualifiedName": "AutoSavingCache.java",
-    "isNewTraceLink": true,
+    "isNewTraceLink": false,
     "isDeleted": false
   },
   {
@@ -310,13 +331,6 @@
   {
     "requirementDescription": "F3",
     "type": "CLASS",
-    "fullyQualifiedName": "InstrumentingCacheMBean.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
-  },
-  {
-    "requirementDescription": "F3",
-    "type": "CLASS",
     "fullyQualifiedName": "SerializingCache.java",
     "isNewTraceLink": false,
     "isDeleted": false
@@ -327,20 +341,6 @@
     "fullyQualifiedName": "SerializingCacheProvider.java",
     "isNewTraceLink": false,
     "isDeleted": false
-  },
-  {
-    "requirementDescription": "F4",
-    "type": "CLASS",
-    "fullyQualifiedName": "AutoSavingRowCache.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
-  },
-  {
-    "requirementDescription": "F4",
-    "type": "CLASS",
-    "fullyQualifiedName": "AutoSavingKeyCache.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
   },
   {
     "requirementDescription": "F4",
@@ -516,13 +516,6 @@
     "fullyQualifiedName": "KSMetaData.java",
     "isNewTraceLink": false,
     "isDeleted": false
-  },
-  {
-    "requirementDescription": "F11",
-    "type": "CLASS",
-    "fullyQualifiedName": "ReplicationStrategy.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
   },
   {
     "requirementDescription": "F12",
@@ -2112,13 +2105,6 @@
     "fullyQualifiedName": "OutboundTcpConnectionPool.java",
     "isNewTraceLink": false,
     "isDeleted": false
-  },
-  {
-    "requirementDescription": "F43",
-    "type": "CLASS",
-    "fullyQualifiedName": "ProtocolHeader.java",
-    "isNewTraceLink": false,
-    "isDeleted": true
   },
   {
     "requirementDescription": "F43",

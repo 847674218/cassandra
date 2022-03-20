@@ -1554,5 +1554,109 @@
     {
         "name": "F389",
         "normalProcess": "Preserve compatibility with pre-1.1 index queries. 1.1 does not preserve compatibility w/ index queries against 1.0 nodes."
+    },
+    {
+        "name": "F390",
+        "normalProcess": "Fix cleanup not deleting index entries. cleanup optimization can delete data but not corresponding index entries."
+    },
+    {
+        "name": "F391",
+        "normalProcess": "Use correct partitioner when saving + loading caches. sstable2json error."
+    },
+    {
+        "name": "F392",
+        "normalProcess": "Check schema before trying to export sstable. NPE in sstable2json."
+    },
+    {
+        "name": "F393",
+        "normalProcess": "Raise a meaningful exception instead of NPE when PFS encounters an unconfigured node + no default. PFS should give a friendlier error message when a node has not been configured."
+    },
+    {
+        "name": "F394",
+        "normalProcess": "Fix bug in sstable blacklisting with LCS. fix sstable blacklisting for LCS."
+    },
+    {
+        "name": "F395",
+        "normalProcess": "LCS no longer promotes tiny sstables out of L0. Small SSTable Segments Can Hurt Leveling Process."
+    },
+    {
+        "name": "F396",
+        "normalProcess": "Skip tombstones during hint replay. Assertion error while delivering the hints."
+    },
+    {
+        "name": "F397",
+        "normalProcess": "Fix NPE in compactionstats. Nodetool compactionstats fails with NullPointerException."
+    },
+    {
+        "name": "F398",
+        "normalProcess": "Enforce 1m min keycache for auto. enforce 1m min keycache for auto."
+    },
+    {
+        "name": "F399",
+        "normalProcess": "Have DeletedColumn.isMFD always return true. isMarkedForDelete can return false if it is a few seconds in the future."
+    },
+    {
+        "name": "F400",
+        "normalProcess": "(cql3) exeption message for ORDER BY constraints said primary filter can be an IN clause, which is misleading. ex msg for cql3 order by constraints says primary filter can be an IN clause which is misleading."
+    },
+    {
+        "name": "F401",
+        "normalProcess": "(cql3) Reject (not yet supported) creation of 2ndardy indexes on tables with composite primary keys. CQL client timeout when inserting data after creating index."
+    },
+    {
+        "name": "F402",
+        "normalProcess": "Set JVM stack size to 160k for java 7. Oracle Java 1.7 u4 does not allow Xss128k."
+    },
+    {
+        "name": "F403",
+        "normalProcess": "cqlsh: add COPY command to load data from CSV flat files. Load-from-flat-file data import tool."
+    },
+    {
+        "name": "F404",
+        "normalProcess": "CFMetaData.fromThrift to throw ConfigurationException upon error. no error propagated to client when updating a column family with an invalid column def."
+    },
+    {
+        "name": "F405",
+        "normalProcess": "Use CF comparator to sort indexed columns in SecondaryIndexManager. Use CF comparator to sort indexed columns in SecondaryIndexManager."
+    },
+    {
+        "name": "F406",
+        "normalProcess": "Add strategy_options to the KSMetaData.toString() output. it'd be great to print the strategyOptions map in the KSMetatData.toString."
+    },
+    {
+        "name": "F407",
+        "normalProcess": "(cql3) fix range queries containing unqueried results. CQL3 Range Query contains unwanted results with composite columns."
+    },
+    {
+        "name": "F408",
+        "normalProcess": "(cql3) allow updating column_alias types. Allow updating column_alias types."
+    },
+    {
+        "name": "F409",
+        "normalProcess": "(cql3) Fix deletion bug. cql delete does not delete."
+    },
+    {
+        "name": "F410",
+        "normalProcess": "Fix computation of overlapping sstable for leveled compaction. stackoverflow building interval tree & possible sstable corruptions."
+    },
+    {
+        "name": "F411",
+        "normalProcess": "Improve scrub and allow to run it offline. stackoverflow building interval tree & possible sstable corruptions."
+    },
+    {
+        "name": "F412",
+        "normalProcess": "Fix assertionError in StorageService.bulkLoad. bulkLoad() method in StorageService throws AssertionError."
+    },
+    {
+        "name": "F413",
+        "normalProcess": "(cqlsh) add option to authenticate to a keyspace at startup. Add an option to cqlsh to authenticate to a keyspace by default."
+    },
+    {
+        "name": "F414",
+        "normalProcess": "(cqlsh) fix ASSUME functionality. cqlsh: ASSUME functionality broken by CASSANDRA-4198 fix."
+    },
+    {
+        "name": "F415",
+        "normalProcess": "Fix ColumnFamilyRecordReader to not return progress > 100% ColumnFamilyRecordReader can report progress > 100%."
     }
 ]

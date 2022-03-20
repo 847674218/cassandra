@@ -30,11 +30,13 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
@@ -91,7 +93,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
     }
 
-    public Set<DecoratedKey> readSaved(String ksName, String cfName)
+    public Set<DecoratedKey> readSaved(String ksName, String cfName, IPartitioner partitioner)
     {
         File path = getCachePath(ksName, cfName);
         Set<DecoratedKey> keys = new TreeSet<DecoratedKey>();
@@ -113,7 +115,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     DecoratedKey key;
                     try
                     {
-                        key = StorageService.getPartitioner().decorateKey(buffer);
+                        key = partitioner.decorateKey(buffer);
                     }
                     catch (Exception e)
                     {
@@ -192,7 +194,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(type, 0, estimatedTotalBytes);
+            info = new CompactionInfo(new CFMetaData("system", cacheType.toString(), null, null, null),
+                                      type,
+                                      0,
+                                      estimatedTotalBytes);
         }
 
         public CompactionInfo getCompactionInfo()

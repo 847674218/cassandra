@@ -339,6 +339,7 @@ public final class CFMetaData
                              .keyValidator(info.getValidator())
                              .readRepairChance(0.0)
                              .dcLocalReadRepairChance(0.0)
+                             .gcGraceSeconds(0)
                              .caching(indexCaching)
                              .compactionStrategyClass(parent.compactionStrategyClass)
                              .compactionStrategyOptions(parent.compactionStrategyOptions)
@@ -347,7 +348,6 @@ public final class CFMetaData
 
     public CFMetaData reloadSecondaryIndexMetadata(CFMetaData parent)
     {
-        gcGraceSeconds(parent.gcGraceSeconds);
         minCompactionThreshold(parent.minCompactionThreshold);
         maxCompactionThreshold(parent.maxCompactionThreshold);
         compactionStrategyClass(parent.compactionStrategyClass);
@@ -645,12 +645,19 @@ public final class CFMetaData
 
         CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
-        return newCFMD.comment(cf_def.comment)
-                      .replicateOnWrite(cf_def.replicate_on_write)
-                      .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
-                      .keyValidator(TypeParser.parse(cf_def.key_validation_class))
-                      .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
-                      .compressionParameters(cp);
+        try
+        {
+            return newCFMD.comment(cf_def.comment)
+                          .replicateOnWrite(cf_def.replicate_on_write)
+                          .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
+                          .keyValidator(TypeParser.parse(cf_def.key_validation_class))
+                          .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata))
+                          .compressionParameters(cp);
+        }
+        catch (MarshalException e)
+        {
+            throw new ConfigurationException(e.getMessage());
+        }
     }
 
     public void reload() throws IOException

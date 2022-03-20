@@ -495,7 +495,7 @@ public class SelectStatement implements CQLStatement
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         for (Restriction r : columnRestrictions)
         {
-            if (r == null)
+            if (r == null || (!r.isEquality() && r.bound(b) == null))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
@@ -514,10 +514,8 @@ public class SelectStatement implements CQLStatement
             else
             {
                 Term t = r.bound(b);
-                if (t == null)
-                    return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                else
-                    return builder.add(t, r.getRelation(b), variables).build();
+                assert t != null;
+                return builder.add(t, r.getRelation(b), variables).build();
             }
         }
         // Means no relation at all or everything was an equal
@@ -1082,7 +1080,7 @@ public class SelectStatement implements CQLStatement
                 // TODO: we could allow ordering for IN queries, as we can do the
                 // sorting post-query easily, but we will have to add it
                 if (stmt.keyRestriction == null || !stmt.keyRestriction.isEquality() || stmt.keyRestriction.eqValues.size() != 1)
-                    throw new InvalidRequestException("Ordering is only supported is the first part of the PRIMARY KEY is restricted by an Equal or a IN");
+                    throw new InvalidRequestException("Ordering is only supported if the first part of the PRIMARY KEY is restricted by an Equal");
             }
 
             // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
